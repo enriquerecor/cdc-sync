@@ -1,0 +1,4 @@
+clickhouse-connect
+confluent-kafka
+pyaml
+requests
