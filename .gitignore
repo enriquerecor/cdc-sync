@@ -229,3 +229,85 @@ context.json
 memory.json
 session.json
 agent-state.json
+
+# === Sistema operativo ===
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# === Node / React / Vite ===
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+.npm/
+.yarn/
+.yarn-cache/
+.parcel-cache/
+.turbo/
+.next/
+.nuxt/
+.svelte-kit/
+coverage/
+dist/
+build/
+*.tsbuildinfo
+vite.svg
+
+# === Frontend workspace ===
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/coverage/
+frontend/.vite/
+
+# === PHP / Laravel ===
+vendor/
+composer.phar
+api/vendor/
+api/node_modules/
+api/public/hot
+api/public/storage
+api/storage/*.key
+api/storage/logs/*
+api/storage/framework/cache/*
+api/storage/framework/sessions/*
+api/storage/framework/testing/*
+api/storage/framework/views/*
+api/bootstrap/cache/*
+api/.phpunit.result.cache
+api/.phpunit.cache/
+api/.php-cs-fixer.cache
+api/.phpactor.json
+api/_ide_helper.php
+api/_ide_helper_models.php
+api/.idea/
+api/.vscode/
+Homestead.json
+Homestead.yaml
+auth.json
+
+# === Entornos / secretos ===
+.env
+.env.*
+!.env.example
+!.env.*.example
+api/.env
+api/.env.*
+!api/.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# === Bases de datos y temporales ===
+*.sqlite
+*.sqlite3
+*.db
+tmp/
+temp/
+
+# === Docker / contenedores ===
+docker-compose.override.yml
+.docker/
