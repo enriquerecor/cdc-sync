@@ -182,3 +182,50 @@ cython_debug/
 
 # worker
 worker/data
+
+# === IA / LLM / Agentes locales ===
+
+# Claude / Anthropic
+.claude/
+.claude-cache/
+.anthropic/
+
+# OpenAI / Codex / ChatGPT CLI
+.codex/
+.openai/
+.chatgpt/
+.llm/
+
+# Cursor
+.cursor/
+.cursor-cache/
+
+# JetBrains Junie
+.junie/
+.junie-cache/
+
+# Copilot / GitHub AI
+.github/copilot/
+.copilot/
+
+# Prompts y conversaciones locales
+prompts/
+.ai/
+.ai-cache/
+.ai-history/
+.conversations/
+.embeddings/
+
+# Logs de herramientas IA
+*.llm.log
+*.ai.log
+
+# Configuración personal IA IDE
+.idea/ai.xml
+.idea/junie.xml
+
+# Ficheros típicos que generan estas herramientas
+context.json
+memory.json
+session.json
+agent-state.json
