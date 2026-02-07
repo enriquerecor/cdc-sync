@@ -10,5 +10,5 @@ from utils.logger import Logger
 
 class WriterABC(ABC, Logger):
     @abstractmethod
-    def write_msgs(self, msgs:List[MessageABC]):
+    def write_msgs(self, msgs: List[MessageABC]):
         raise NotImplementedError()

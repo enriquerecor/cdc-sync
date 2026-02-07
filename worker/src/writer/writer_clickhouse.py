@@ -4,10 +4,9 @@
 from typing import List
 
 import clickhouse_connect as ch
-
-from .writer import WriterABC
 from message import MessageABC
 
+from .writer import WriterABC
 
 CREATE_DATABASE_SQL = """
 CREATE DATABASE IF NOT EXISTS {database}
@@ -56,13 +55,13 @@ WHERE (op = 'c') OR (op = 'r') OR (op = 'u') OR (op = 'd')
 
 
 class WriterClickhouse(WriterABC):
-    def __init__(self, host:str, username:str, password:str, config:dict):
+    def __init__(self, host: str, username: str, password: str, config: dict):
         super().__init__(name=self.__class__.__name__)
         self._config = config
         self._client = ch.get_client(host=host, username=username, password=password)
         self._create_tables()
 
-    def write_msgs(self, msgs:List[MessageABC]):
+    def write_msgs(self, msgs: List[MessageABC]):
         values = [m.value for m in msgs]
         payloads = [v['payload'] for v in values]
         column_names = self._get_column_names()
@@ -103,8 +102,8 @@ class WriterClickhouse(WriterABC):
         schema = ',\n'.join(f"\t`{x['name']}` {x['type']}" for x in self._config['schema']['final'])
         projections = ',\n'.join(
             f'\t{self._config['transforms'][x['name']]
-                 if x['name'] in self._config['transforms'].keys()
-                 else x['name']}'
+            if x['name'] in self._config['transforms'].keys()
+            else x['name']}'
             for x in self._config['schema']['final']
         )
         sql = CREATE_MATERIALIZED_VIEW_SQL.format(database=self._config['database'],
@@ -118,7 +117,7 @@ class WriterClickhouse(WriterABC):
         column_names += ['op', 'version', 'deleted']
         return column_names
 
-    def _get_data(self, payload:dict) -> List[any]:
+    def _get_data(self, payload: dict) -> List[any]:
         op = payload['op']
         data = [(payload['before'] if op == 'd' else payload['after'])[x['name']]
                 for x in self._config['schema']['origin']]

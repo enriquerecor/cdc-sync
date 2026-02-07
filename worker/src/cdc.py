@@ -5,6 +5,7 @@ import argparse
 from pathlib import Path
 
 from yaml import load
+
 try:
     from yaml import CLoader as Loader
 except ImportError:
@@ -13,7 +14,6 @@ except ImportError:
 from consumer import ConsumerKafka
 from utils.logger import Logger
 from writer import WriterClickhouse
-
 
 CURRENT_DIR = Path(__file__).parent
 

@@ -5,7 +5,7 @@ import logging
 
 
 class Logger:
-    def __init__(self, name:str, level:int=logging.INFO):
+    def __init__(self, name: str, level: int = logging.INFO):
         self._logger = logging.getLogger(name)
         logging.basicConfig(level=level, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 

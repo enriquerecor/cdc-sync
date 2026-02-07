@@ -8,10 +8,10 @@ from writer import WriterABC
 
 
 class ConsumerABC(ABC, Logger):
-    def __init__(self, writer:WriterABC, name:str):
+    def __init__(self, writer: WriterABC, name: str):
         super().__init__(name=name)
         self._writer = writer
 
     @abstractmethod
-    def start_loop(self, topic:str):
+    def start_loop(self, topic: str):
         raise NotImplementedError()

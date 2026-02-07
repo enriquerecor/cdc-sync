@@ -4,16 +4,16 @@
 from typing import List
 
 from confluent_kafka import Consumer, KafkaError, KafkaException, Message
-
-from .consumer import ConsumerABC
 from message import MessageKafka
 from writer import WriterABC
+
+from .consumer import ConsumerABC
 
 
 # TODO: Handling errors
 class ConsumerKafka(ConsumerABC):
-    def __init__(self, writer:WriterABC, group_id:str, bootstrap_servers:str, timeout:float=1.0,
-                 num_messages:int=1000):
+    def __init__(self, writer: WriterABC, group_id: str, bootstrap_servers: str, timeout: float = 1.0,
+                 num_messages: int = 1000):
         super().__init__(writer=writer, name=self.__class__.__name__)
         self._group_id = group_id
         self._bootstrap_servers = bootstrap_servers
@@ -21,7 +21,7 @@ class ConsumerKafka(ConsumerABC):
         self._num_messages = num_messages
         self._consumer = Consumer(self._get_config())
 
-    def start_loop(self, topic:str):
+    def start_loop(self, topic: str):
         try:
             self._consumer.subscribe([topic])
             while True:
@@ -50,7 +50,7 @@ class ConsumerKafka(ConsumerABC):
             'auto.offset.reset': 'earliest'
         }
 
-    def _process_msgs(self, msgs:List[Message]):
+    def _process_msgs(self, msgs: List[Message]):
         _msgs = [MessageKafka(x) for x in msgs if x.value() is not None]
         if len(_msgs) == 0:
             return
