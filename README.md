@@ -20,15 +20,15 @@ evitando la corrupción de la BBDD analítica.
 * **Backend / API REST:** PHP (Laravel), gestión de usuarios, autenticación, configuración de tablas, políticas de
   sincronización y _endpoints_ de _trigger_.
 * **BBDD transaccional de origen:** bases de datos relacionales comunes (p. e.: MySQL, PostgreSQL), usando librerías y
-  conectores existentes.
+  conectores existentes. Sería más sencillo comenzar con PostgreSQL, ya que es asigna por defecto una clave única para
+  cada fila.
 * **Captura de cambios (CDC):** Debezium para detectar _inserts_, _updates_ y _deletes_.
 * **_Streaming_ de eventos:** Apache Kafka como canal de transporte de cambios.
 * **_Worker_ de procesamiento:** Python, encargado de consumir eventos, aplicar lógica de versionado y persistir los
   cambios en destino.
 * **BBDD analítica de destino:** ClickHouse, con modelo basado en versionado e indicadores de borrado lógico para
   garantizar consistencia.
-* **Coordinación inicial:** BBDD ligera como cola de trabajos (_polling_ periódico y marcado de ejecución).
-* **Evolución opcional de coordinación:** Redis como sistema de mensajería y coordinación más eficiente.
+* **Coordinación de workers:** elegir un framework (p. e.: Redis Queue).
 
 > Nota: el diseño de microservicios debe permitir que, a mayores del desarrollo que formará parte del trabajo, en el
 > futuro sea posible:
@@ -36,6 +36,9 @@ evitando la corrupción de la BBDD analítica.
 > * Sustituir el frontend por otro o por una CLI, pudiendo consumir la misma API REST.
 
 ## Propuesta de valor
+
+> A FUTURO: diseñar solución para que, cuando se añade una columna en una tabla de la BD OLTP, se pueda sincronizar
+> con la BD OLAP sin tener que re-sincronizar la tabla completa.
 
 ### Configuración orientada a negocio
 
