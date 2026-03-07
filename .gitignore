@@ -251,8 +251,6 @@ pnpm-debug.log*
 .nuxt/
 .svelte-kit/
 coverage/
-dist/
-build/
 *.tsbuildinfo
 vite.svg
 
@@ -290,7 +288,6 @@ Homestead.yaml
 auth.json
 
 # === Entornos / secretos ===
-.env
 .env.*
 !.env.example
 !.env.*.example
