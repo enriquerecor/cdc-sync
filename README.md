@@ -113,3 +113,36 @@ docker compose stop kafka zookeeper
 docker compose rm -f kafka zookeeper
 docker compose up -d zookeeper kafka
 ```
+
+### 2.4 Validar publicación y consumo en Kafka
+
+Crear el topic técnico de prueba:
+
+```bash
+docker compose exec kafka kafka-topics --create \
+  --if-not-exists \
+  --topic cdc-sync-test \
+  --bootstrap-server kafka:29092 \
+  --partitions 1 \
+  --replication-factor 1
+```
+
+Publicar un mensaje de ejemplo:
+
+```bash
+printf 'ping-kafka-ejemplo\n' | docker compose exec -T kafka kafka-console-producer \
+  --topic cdc-sync-test \
+  --bootstrap-server kafka:29092
+```
+
+Consumir un mensaje y salir tras recibirlo:
+
+```bash
+docker compose exec kafka kafka-console-consumer \
+  --topic cdc-sync-test \
+  --bootstrap-server kafka:29092 \
+  --from-beginning \
+  --max-messages 1
+```
+
+El resultado esperado es que el consumidor muestre `ping-kafka-ejemplo` por pantalla y finalice.
