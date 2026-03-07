@@ -70,3 +70,46 @@ base desde cero:
 docker compose down -v
 docker compose up -d postgres
 ```
+
+## 2. ZooKeeper y Kafka
+
+Segundo paso de infraestructura local: añadir la capa de mensajería base para que el stack pueda incorporar después
+Debezium y el worker.
+
+Aunque Kafka moderno puede desplegarse sin ZooKeeper, por ser menos común, se decide ceñirse al stack con ZooKeeper.
+
+### 2.1 Levantar ZooKeeper y Kafka
+
+```bash
+docker compose up -d zookeeper kafka
+```
+
+Con la configuración por defecto de `.env.example`:
+
+- ZooKeeper queda disponible en `localhost:2181`
+- Kafka queda disponible en `localhost:9092` para clientes del host
+- Kafka expone `kafka:29092` para el resto de contenedores del `docker-compose`
+
+### 2.2 Validar el estado de los servicios
+
+Comprobar que ambos contenedores están sanos:
+
+```bash
+docker compose ps
+```
+
+Validar que el broker responde dentro de la red Docker:
+
+```bash
+docker compose exec kafka cub kafka-ready 1 30 -b kafka:29092
+```
+
+### 2.3 Reiniciar ZooKeeper y Kafka desde cero
+
+Si fuera necesario recrear solo esta parte del stack:
+
+```bash
+docker compose stop kafka zookeeper
+docker compose rm -f kafka zookeeper
+docker compose up -d zookeeper kafka
+```
