@@ -20,6 +20,9 @@ cp .env.example .env
 Actualmente el fichero incluye variables para PostgreSQL, ZooKeeper, Kafka y Debezium Connect. Se añadirán nuevas
 secciones cuando entren ClickHouse y el worker.
 
+La configuracion de conectores Debezium se versiona como plantilla sin secretos. Las credenciales reales deben quedar
+solo en `.env` en local o en el sistema de despliegue del entorno correspondiente.
+
 ## 1. PostgreSQL
 
 Primer paso de infraestructura local: PostgreSQL con dos tablas de prueba (`customers` y `orders`) creadas
@@ -189,3 +192,56 @@ docker compose stop connect
 docker compose rm -f connect
 docker compose up -d connect
 ```
+
+### 3.4 Flujo comun para conectores Debezium
+
+Antes de registrar el conector, PostgreSQL debe estar recreado con `wal_level=logical`:
+
+```bash
+docker compose up -d --force-recreate postgres
+docker compose exec postgres psql -U cdc_sync -d cdc_sync -c "SHOW wal_level;"
+```
+
+El resultado esperado es `logical`.
+
+Las plantillas versionadas y las convenciones comunes estan en:
+
+```bash
+infrastructure/debezium/connectors/README.md
+```
+
+Renderizar la plantilla del conector con variables locales:
+
+```bash
+./infrastructure/debezium/connectors/render-template.sh \
+  infrastructure/debezium/connectors/postgresql/source.config.template.json \
+  infrastructure/debezium/connectors/generated/postgresql-source.local.json
+```
+
+Aplicar la configuracion renderizada de forma idempotente:
+
+```bash
+curl -fsS -X PUT http://localhost:8083/connectors/postgres-cdc-source/config \
+  -H "Content-Type: application/json" \
+  --data @infrastructure/debezium/connectors/generated/postgresql-source.local.json
+```
+
+La configuracion renderizada queda fuera de Git para evitar subir credenciales locales.
+
+### 3.5 Registrar el conector PostgreSQL de ejemplo
+
+La plantilla especifica de PostgreSQL esta en:
+
+```bash
+infrastructure/debezium/connectors/postgresql/source.config.template.json
+```
+
+La estructura ya reserva carpetas independientes para futuros conectores de `mysql` y `mariadb`.
+
+Comprobar el estado del conector PostgreSQL:
+
+```bash
+curl -fsS http://localhost:8083/connectors/postgres-cdc-source/status
+```
+
+El resultado esperado es que el conector y su única tarea queden en estado `RUNNING`.
