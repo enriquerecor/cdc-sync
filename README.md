@@ -253,3 +253,54 @@ curl -fsS http://localhost:8083/connectors/postgres-cdc-source/status
 ```
 
 El resultado esperado es que el conector y su única tarea queden en estado `RUNNING`.
+
+### 3.6 Validar eventos CDC en Kafka
+
+En un arranque limpio del conector, Debezium realiza primero un *snapshot* inicial de las tablas capturadas.
+Durante esa fase pueden aparecer eventos con `op: "r"` (*read*) al consumir desde el principio del topic.
+
+Una vez completado el *snapshot*, las inserciones nuevas ya se publican como eventos de streaming con `op: "c"`
+(*create*).
+
+Insertar una fila nueva en `customers`:
+
+```bash
+docker compose exec postgres psql -U cdc_sync -d cdc_sync -c \
+  "INSERT INTO customers (email, full_name) VALUES ('cdc-check@example.com', 'CDC Check Customer');"
+```
+
+Consumir el topic CDC de `customers` y buscar ese valor:
+
+```bash
+docker compose exec kafka kafka-console-consumer \
+  --topic cdc_sync.public.customers \
+  --bootstrap-server kafka:29092 \
+  --from-beginning \
+  --timeout-ms 15000
+```
+
+Insertar una fila nueva en `orders` vinculada al cliente anterior:
+
+```bash
+docker compose exec postgres psql -U cdc_sync -d cdc_sync -c \
+  "INSERT INTO orders (customer_id, order_number, total_amount, status) VALUES ((SELECT id FROM customers WHERE email = 'cdc-check@example.com'), 'CDC-CHECK-ORDER', 123.45, 'created');"
+```
+
+Consumir el topic CDC de `orders` y buscar ese `order_number`:
+
+```bash
+docker compose exec kafka kafka-console-consumer \
+  --topic cdc_sync.public.orders \
+  --bootstrap-server kafka:29092 \
+  --from-beginning \
+  --timeout-ms 15000
+```
+
+En esta validación sobre un stack recién levantado, el resultado esperado es que aparezcan ambos eventos en Kafka con
+los valores insertados en `customers` y `orders`. El campo `op` puede ser:
+
+- `r` si el registro ha quedado incluido en el *snapshot* inicial.
+- `c` si el registro ya ha sido capturado en modo streaming.
+
+Si se quiere comprobar específicamente el modo streaming, arrancar primero el consumidor sin `--from-beginning`,
+dejarlo escuchando y luego insertar una nueva fila. En ese caso el evento esperado debe llegar con `op: "c"`.
