@@ -17,6 +17,12 @@ Copiar el fichero de ejemplo si se quiere personalizar usuario, contraseña, bas
 cp .env.example .env
 ```
 
+Alternativa recomendada para preparar `.env` sin sobrescribir uno ya existente:
+
+```bash
+make env-init
+```
+
 Actualmente el fichero incluye variables para PostgreSQL, ZooKeeper, Kafka y Debezium Connect. Se añadirán nuevas
 secciones cuando entren ClickHouse y el worker.
 
@@ -213,20 +219,22 @@ infrastructure/debezium/connectors/README.md
 Renderizar la plantilla del conector con variables locales:
 
 ```bash
-./infrastructure/debezium/connectors/render-template.sh \
-  infrastructure/debezium/connectors/postgresql/source.config.template.json \
-  infrastructure/debezium/connectors/generated/postgresql-source.local.json
+make debezium-postgres-render
 ```
 
 Aplicar la configuracion renderizada de forma idempotente:
 
 ```bash
-curl -fsS -X PUT http://localhost:8083/connectors/postgres-cdc-source/config \
-  -H "Content-Type: application/json" \
-  --data @infrastructure/debezium/connectors/generated/postgresql-source.local.json
+make debezium-postgres-apply
 ```
 
 La configuracion renderizada queda fuera de Git para evitar subir credenciales locales.
+
+Si se quiere consultar el estado del conector:
+
+```bash
+make debezium-postgres-status
+```
 
 ### 3.5 Registrar el conector PostgreSQL de ejemplo
 
