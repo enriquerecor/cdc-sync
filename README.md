@@ -17,8 +17,8 @@ Copiar el fichero de ejemplo si se quiere personalizar usuario, contraseña, bas
 cp .env.example .env
 ```
 
-Por ahora solo se usan variables para PostgreSQL. Se añadirán nuevas secciones al mismo fichero cuando entren Kafka,
-Debezium, ClickHouse y el worker.
+Actualmente el fichero incluye variables para PostgreSQL, ZooKeeper, Kafka y Debezium Connect. Se añadirán nuevas
+secciones cuando entren ClickHouse y el worker.
 
 ## 1. PostgreSQL
 
@@ -146,3 +146,46 @@ docker compose exec kafka kafka-console-consumer \
 ```
 
 El resultado esperado es que el consumidor muestre `ping-kafka-ejemplo` por pantalla y finalice.
+
+## 3. Debezium Connect
+
+Tercer paso de infraestructura local: añadir el servicio base de Kafka Connect con la imagen oficial de Debezium,
+dejando la captura CDC para el siguiente corte.
+
+### 3.1 Levantar Debezium Connect
+
+```bash
+docker compose up -d connect
+```
+
+Con la configuración por defecto de `.env.example`, la API REST de Connect queda disponible en `localhost:8083`.
+
+### 3.2 Validar el estado del servicio
+
+Comprobar que el contenedor está sano:
+
+```bash
+docker compose ps
+```
+
+Comprobar que la API REST responde:
+
+```bash
+curl -fsS http://localhost:8083/
+```
+
+Comprobar que los plugins de conectores están disponibles:
+
+```bash
+curl -fsS http://localhost:8083/connector-plugins
+```
+
+### 3.3 Reiniciar Debezium Connect desde cero
+
+Si fuera necesario recrear solo este servicio:
+
+```bash
+docker compose stop connect
+docker compose rm -f connect
+docker compose up -d connect
+```
