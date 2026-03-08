@@ -1,6 +1,10 @@
 services:
   postgres:
     image: postgres:16-alpine
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-cdc_sync}
       POSTGRES_USER: ${POSTGRES_USER:-cdc_sync}
