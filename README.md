@@ -23,10 +23,10 @@ Alternativa recomendada para preparar `.env` sin sobrescribir uno ya existente:
 make env-init
 ```
 
-Actualmente el fichero incluye variables para PostgreSQL, ZooKeeper, Kafka y Debezium Connect. Se añadirán nuevas
+Actualmente, el fichero incluye variables para PostgreSQL, ZooKeeper, Kafka y Debezium Connect. Se añadirán nuevas
 secciones cuando entren ClickHouse y el worker.
 
-La configuracion de conectores Debezium se versiona como plantilla sin secretos. Las credenciales reales deben quedar
+La configuración de conectores Debezium se versiona como plantilla sin secretos. Las credenciales reales deben quedar
 solo en `.env` en local o en el sistema de despliegue del entorno correspondiente.
 
 ## 1. PostgreSQL
@@ -199,7 +199,7 @@ docker compose rm -f connect
 docker compose up -d connect
 ```
 
-### 3.4 Flujo comun para conectores Debezium
+### 3.4 Flujo común para conectores Debezium
 
 Antes de registrar el conector, PostgreSQL debe estar recreado con `wal_level=logical`:
 
@@ -210,7 +210,7 @@ docker compose exec postgres psql -U cdc_sync -d cdc_sync -c "SHOW wal_level;"
 
 El resultado esperado es `logical`.
 
-Las plantillas versionadas y las convenciones comunes estan en:
+Las plantillas versionadas y las convenciones comunes están en:
 
 ```bash
 infrastructure/debezium/connectors/README.md
@@ -222,13 +222,13 @@ Renderizar la plantilla del conector con variables locales:
 make debezium-postgres-render
 ```
 
-Aplicar la configuracion renderizada de forma idempotente:
+Aplicar la configuración renderizada de forma idempotente:
 
 ```bash
 make debezium-postgres-apply
 ```
 
-La configuracion renderizada queda fuera de Git para evitar subir credenciales locales.
+La configuración renderizada queda fuera de Git para evitar subir credenciales locales.
 
 Si se quiere consultar el estado del conector:
 
@@ -238,7 +238,7 @@ make debezium-postgres-status
 
 ### 3.5 Registrar el conector PostgreSQL de ejemplo
 
-La plantilla especifica de PostgreSQL esta en:
+La plantilla específica de PostgreSQL está en:
 
 ```bash
 infrastructure/debezium/connectors/postgresql/source.config.template.json
