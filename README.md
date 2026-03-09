@@ -23,8 +23,8 @@ Alternativa recomendada para preparar `.env` sin sobrescribir uno ya existente:
 make env-init
 ```
 
-Actualmente, el fichero incluye variables para PostgreSQL, ZooKeeper, Kafka y Debezium Connect. Se añadirán nuevas
-secciones cuando entren ClickHouse y el worker.
+Actualmente, el fichero incluye variables para PostgreSQL, ZooKeeper, Kafka, Debezium Connect y el worker. Se
+añadirán nuevas secciones cuando entre ClickHouse.
 
 La configuración de conectores Debezium se versiona como plantilla sin secretos. Las credenciales reales deben quedar
 solo en `.env` en local o en el sistema de despliegue del entorno correspondiente.
@@ -304,3 +304,70 @@ los valores insertados en `customers` y `orders`. El campo `op` puede ser:
 
 Si se quiere comprobar específicamente el modo streaming, arrancar primero el consumidor sin `--from-beginning`,
 dejarlo escuchando y luego insertar una nueva fila. En ese caso el evento esperado debe llegar con `op: "c"`.
+
+## 4. Worker
+
+Cuarto paso de infraestructura local: añadir un consumidor base en Python para validar el tramo `Kafka -> worker`
+antes de introducir transformaciones o persistencia en ClickHouse.
+
+### 4.1 Levantar el worker
+
+Con PostgreSQL, Kafka y Debezium Connect ya activos, levantar el worker:
+
+```bash
+docker compose up -d --build worker
+```
+
+Por defecto, el worker se suscribe por patrón regex a los topics CDC de `customers` y `orders`:
+
+```text
+^cdc_sync[.]public[.](customers|orders)$
+```
+
+### 4.2 Validar el estado del worker
+
+Comprobar que el contenedor está levantado:
+
+```bash
+docker compose ps
+```
+
+Seguir los logs del worker:
+
+```bash
+docker compose logs -f worker
+```
+
+Al arrancar correctamente, debe aparecer una línea similar a `worker_started`.
+
+### 4.3 Validar el consumo de eventos CDC
+
+Tras un arranque limpio del stack, reaplicar primero el conector PostgreSQL:
+
+```bash
+make debezium-postgres-apply
+make debezium-postgres-status
+```
+
+Con el worker escuchando logs, insertar una fila nueva en `customers`:
+
+```bash
+docker compose exec postgres psql -U cdc_sync -d cdc_sync -c \
+  "INSERT INTO customers (email, full_name) VALUES ('worker-check@example.com', 'Worker Check Customer');"
+```
+
+El resultado esperado es que el worker escriba una línea `cdc_event` en sus logs con el topic
+`cdc_sync.public.customers` y el payload del evento recibido.
+
+En el primer arranque del grupo `cdc-sync-worker`, la estrategia por defecto `earliest` puede hacer que el worker
+reproduzca primero eventos históricos del topic, incluidos los del *snapshot* inicial. En ese caso, basta con buscar
+en logs el `email` insertado para confirmar que el evento nuevo también ha sido consumido.
+
+Si se quiere comprobar también la segunda tabla capturada, insertar después una fila en `orders`:
+
+```bash
+docker compose exec postgres psql -U cdc_sync -d cdc_sync -c \
+  "INSERT INTO orders (customer_id, order_number, total_amount, status) VALUES ((SELECT id FROM customers WHERE email = 'worker-check@example.com'), 'WORKER-CHECK-ORDER', 44.90, 'created');"
+```
+
+El resultado esperado es una segunda línea `cdc_event` en el topic `cdc_sync.public.orders`.
