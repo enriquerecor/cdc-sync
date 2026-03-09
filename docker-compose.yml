@@ -86,5 +86,19 @@ services:
       retries: 5
       start_period: 30s
 
+  worker:
+    build:
+      context: ./worker
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      WORKER_KAFKA_BOOTSTRAP_SERVERS: ${WORKER_KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+      WORKER_KAFKA_TOPIC_PATTERN: ${WORKER_KAFKA_TOPIC_PATTERN:-^cdc_sync[.]public[.](customers|orders)$}
+      WORKER_KAFKA_GROUP_ID: ${WORKER_KAFKA_GROUP_ID:-cdc-sync-worker}
+      WORKER_KAFKA_AUTO_OFFSET_RESET: ${WORKER_KAFKA_AUTO_OFFSET_RESET:-earliest}
+      WORKER_KAFKA_POLL_TIMEOUT_MS: ${WORKER_KAFKA_POLL_TIMEOUT_MS:-1000}
+    restart: unless-stopped
+
 volumes:
   postgres_data:
