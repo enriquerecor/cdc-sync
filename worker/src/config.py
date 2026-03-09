@@ -8,6 +8,7 @@ VALID_AUTO_OFFSET_RESET = {"earliest", "latest"}
 class WorkerConfig:
     kafka_bootstrap_servers: str
     kafka_topic_pattern: str
+    kafka_client_id: str
     kafka_group_id: str
     kafka_auto_offset_reset: str
     kafka_poll_timeout_ms: int
@@ -16,6 +17,7 @@ class WorkerConfig:
 def load_config() -> WorkerConfig:
     kafka_bootstrap_servers = _read_required_env("WORKER_KAFKA_BOOTSTRAP_SERVERS")
     kafka_topic_pattern = _read_required_env("WORKER_KAFKA_TOPIC_PATTERN")
+    kafka_client_id = _read_required_env("WORKER_KAFKA_CLIENT_ID")
     kafka_group_id = _read_required_env("WORKER_KAFKA_GROUP_ID")
     kafka_auto_offset_reset = _read_required_env("WORKER_KAFKA_AUTO_OFFSET_RESET")
     kafka_poll_timeout_ms = _read_positive_int_env("WORKER_KAFKA_POLL_TIMEOUT_MS")
@@ -28,6 +30,7 @@ def load_config() -> WorkerConfig:
     return WorkerConfig(
         kafka_bootstrap_servers=kafka_bootstrap_servers,
         kafka_topic_pattern=kafka_topic_pattern,
+        kafka_client_id=kafka_client_id,
         kafka_group_id=kafka_group_id,
         kafka_auto_offset_reset=kafka_auto_offset_reset,
         kafka_poll_timeout_ms=kafka_poll_timeout_ms,

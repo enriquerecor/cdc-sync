@@ -13,13 +13,15 @@ def main() -> None:
 
     config = load_config()
     logging.info(
-        "worker_started bootstrap_servers=%s topic_pattern=%s group_id=%s",
+        "worker_started bootstrap_servers=%s topic_pattern=%s client_id=%s group_id=%s",
         config.kafka_bootstrap_servers,
         config.kafka_topic_pattern,
+        config.kafka_client_id,
         config.kafka_group_id,
     )
 
     consumer = build_consumer(config)
+
     try:
         consume_forever(consumer, config)
     except KeyboardInterrupt:
