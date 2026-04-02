@@ -23,8 +23,8 @@ Alternativa recomendada para preparar `.env` sin sobrescribir uno ya existente:
 make env-init
 ```
 
-Actualmente, el fichero incluye variables para PostgreSQL, ZooKeeper, Kafka, Debezium Connect y el worker. Se
-añadirán nuevas secciones cuando entre ClickHouse.
+Actualmente, el fichero incluye variables para PostgreSQL, ZooKeeper, Kafka, Debezium Connect, el worker y
+ClickHouse.
 
 La configuración de conectores Debezium se versiona como plantilla sin secretos. Las credenciales reales deben quedar
 solo en `.env` en local o en el sistema de despliegue del entorno correspondiente.
@@ -381,3 +381,54 @@ docker compose exec postgres psql -U cdc_sync -d cdc_sync -c \
 ```
 
 El resultado esperado es una segunda línea `cdc_event` en el topic `cdc_sync.public.orders`.
+
+## 5. ClickHouse
+
+Quinto paso de infraestructura local: añadir la base analítica de destino para completar el stack descrito en la
+issue, sin introducir todavía tablas de destino ni escrituras desde el worker.
+
+### 5.1 Levantar ClickHouse
+
+Levantar el servicio base de ClickHouse:
+
+```bash
+docker compose up -d clickhouse
+```
+
+Con la configuración por defecto de `.env.example`:
+
+- ClickHouse expone HTTP en `localhost:8123`
+- ClickHouse expone el protocolo nativo en `localhost:9000`
+- la base inicial creada es `cdc_sync_analytics`
+
+### 5.2 Validar el estado del servicio
+
+Comprobar que el contenedor está sano:
+
+```bash
+docker compose ps
+```
+
+Consultar la versión del servidor:
+
+```bash
+docker compose exec clickhouse clickhouse-client --query "SELECT version()"
+```
+
+Comprobar que la BD inicial existe:
+
+```bash
+docker compose exec clickhouse clickhouse-client --query "SHOW DATABASES"
+```
+
+El resultado esperado es que aparezca `cdc_sync_analytics` en el listado.
+
+### 5.3 Reiniciar ClickHouse desde cero
+
+Si fuera necesario recrear solo este servicio:
+
+```bash
+docker compose stop clickhouse
+docker compose rm -f clickhouse
+docker compose up -d clickhouse
+```
