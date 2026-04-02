@@ -98,6 +98,7 @@ Con la configuración por defecto de `.env.example`:
 - ZooKeeper queda disponible en `localhost:2181`
 - Kafka queda disponible en `localhost:9092` para clientes del host
 - Kafka expone `kafka:29092` para el resto de contenedores del `docker-compose`
+- El estado de ambos servicios queda persistido en volúmenes con nombre para evitar inconsistencias entre recreaciones
 
 ### 2.2 Validar el estado de los servicios
 
@@ -113,14 +114,23 @@ Validar que el broker responde dentro de la red Docker:
 docker compose exec kafka cub kafka-ready 1 30 -b kafka:29092
 ```
 
-### 2.3 Reiniciar ZooKeeper y Kafka desde cero
+### 2.3 Recrear contenedores de ZooKeeper y Kafka
 
-Si fuera necesario recrear solo esta parte del stack:
+Si fuera necesario recrear solo los contenedores de esta parte del stack:
 
 ```bash
 docker compose stop kafka zookeeper
 docker compose rm -f kafka zookeeper
 docker compose up -d zookeeper kafka
+```
+
+Si además se quiere limpiar el estado persistido de Kafka y ZooKeeper, o el entorno local procede de una versión
+anterior del `docker-compose` que usaba volúmenes anónimos, conviene ejecutar una vez este reinicio completo del
+proyecto:
+
+```bash
+docker compose down -v
+docker compose up -d
 ```
 
 ### 2.4 Validar publicación y consumo en Kafka
