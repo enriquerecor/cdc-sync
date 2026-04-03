@@ -3,6 +3,9 @@ from normalized_event import Operation
 
 
 class DebeziumPostgresAdapter(ChangeEventAdapter):
+    def is_tombstone(self, value: object) -> bool:
+        return value is None
+
     def extract_table_name(self, topic: str, value: dict[str, object]) -> str:
         payload = _read_dict(value.get("payload"))
         source = _read_dict(payload.get("source"))
@@ -39,6 +42,18 @@ class DebeziumPostgresAdapter(ChangeEventAdapter):
             )
 
         return data
+
+    def extract_version(self, value: dict[str, object]) -> int:
+        payload = _read_dict(value.get("payload"))
+        source = _read_dict(payload.get("source"))
+        lsn = source.get("lsn")
+
+        if not isinstance(lsn, int) or isinstance(lsn, bool):
+            raise ValueError(
+                "El payload de Debezium PostgreSQL debe incluir 'source.lsn' como entero"
+            )
+
+        return lsn
 
 
 _OPERATION_MAP = {
