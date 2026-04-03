@@ -1,6 +1,8 @@
 SHELL := /bin/bash
 
 ENV_FILE ?= .env
+WORKER_TABLE_CONFIG_TEMPLATE := worker/config/tables.example.json
+WORKER_TABLE_CONFIG_OUTPUT := worker/config/tables.json
 POSTGRES_CONNECTOR_TEMPLATE := infrastructure/debezium/connectors/postgresql/source.config.template.json
 POSTGRES_CONNECTOR_OUTPUT := infrastructure/debezium/connectors/generated/postgresql-source.local.json
 CONNECT_RETRY_ATTEMPTS ?= 15
@@ -23,6 +25,12 @@ env-init:
 	else \
 		cp .env.example "$(ENV_FILE)"; \
 		echo "$(ENV_FILE) creado a partir de .env.example"; \
+	fi
+	@if [[ -f "$(WORKER_TABLE_CONFIG_OUTPUT)" ]]; then \
+		echo "$(WORKER_TABLE_CONFIG_OUTPUT) ya existe. No se sobrescribe."; \
+	else \
+		cp "$(WORKER_TABLE_CONFIG_TEMPLATE)" "$(WORKER_TABLE_CONFIG_OUTPUT)"; \
+		echo "$(WORKER_TABLE_CONFIG_OUTPUT) creado a partir de $(WORKER_TABLE_CONFIG_TEMPLATE)"; \
 	fi
 
 debezium-postgres-render:

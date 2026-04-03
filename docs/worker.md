@@ -8,6 +8,29 @@
 
 ## Arranque
 
+Preparar la configuracion local del worker:
+
+```bash
+make env-init
+```
+
+Esto crea `worker/config/tables.json` a partir de `worker/config/tables.example.json` si todavia no existe.
+
+El fichero real de configuracion del entorno no se versiona. El ejemplo versionado define el contrato base esperado
+por el worker.
+
+Contrato minimo actual por tabla:
+
+- `enabled`
+- `source.connection`
+- `source.schema` (opcional)
+- `source.table`
+- `source.topic`
+- `pk`
+- `sync.mode`
+
+Arrancar el servicio:
+
 ```bash
 docker compose up -d --build worker
 ```
@@ -17,7 +40,8 @@ Topics por defecto:
 - `cdc_sync.public.customers`
 - `cdc_sync.public.orders`
 
-La lista se configura mediante `WORKER_KAFKA_TOPICS` en `.env`.
+Los topics se derivan del fichero de tablas mediante `source.topic`.
+La ruta del fichero de tablas se configura mediante `WORKER_TABLE_CONFIG_PATH` en `.env`.
 
 ## Validaciones
 

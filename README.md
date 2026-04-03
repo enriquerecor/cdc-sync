@@ -18,11 +18,13 @@ transformación de eventos, inserción en ClickHouse ni lógica de versionado.
 
 ## Inicio rápido
 
-Preparar el fichero local de entorno:
+Preparar los ficheros locales de entorno:
 
 ```bash
 make env-init
 ```
+
+Este paso crea `.env` y `worker/config/tables.json` a partir de sus ejemplos versionados si todavia no existen.
 
 Levantar toda la infraestructura:
 

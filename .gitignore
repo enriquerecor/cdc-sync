@@ -186,6 +186,7 @@ cython_debug/
 
 # worker
 worker/data
+worker/config/tables.json
 
 # === IA / LLM / Agentes locales ===
 

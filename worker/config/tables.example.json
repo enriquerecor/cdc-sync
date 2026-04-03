@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "tables": {
+    "customers": {
+      "enabled": true,
+      "source": {
+        "connection": "postgres_local",
+        "schema": "public",
+        "table": "customers",
+        "topic": "cdc_sync.public.customers"
+      },
+      "pk": ["id"],
+      "sync": {
+        "mode": "realtime"
+      }
+    },
+    "orders": {
+      "enabled": true,
+      "source": {
+        "connection": "postgres_local",
+        "schema": "public",
+        "table": "orders",
+        "topic": "cdc_sync.public.orders"
+      },
+      "pk": ["id"],
+      "sync": {
+        "mode": "realtime"
+      }
+    }
+  }
+}
