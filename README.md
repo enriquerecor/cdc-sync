@@ -1,434 +1,85 @@
 # cdc-sync
 
-Sistema configurable de sincronización entre BBDD transaccionales y BBDD analíticas que, mediante CDC, permite replicar
-tablas seleccionadas con distintas políticas de actualización (_batch_, casi en tiempo real o bajo demanda),
-garantizando consistencia y resiliencia ante fallos.
+Sistema configurable de sincronización entre BBDD transaccionales y BBDD analíticas basado en CDC.
 
-## Entorno local
+## Stack local
 
-La infraestructura local se construirá por fases para validar cada pieza antes de añadir la siguiente.
-Este documento irá creciendo con nuevas secciones a medida que se incorporen más servicios al `docker-compose`.
-
-### Preparación general
-
-Copiar el fichero de ejemplo si se quiere personalizar usuario, contraseña, base de datos o puerto:
-
-```bash
-cp .env.example .env
+```text
+PostgreSQL -> Debezium -> Kafka -> Worker (Python) -> ClickHouse
 ```
 
-Alternativa recomendada para preparar `.env` sin sobrescribir uno ya existente:
+Esta fase deja levantada la infraestructura base y valida la conectividad extremo a extremo. No incluye todavía
+transformación de eventos, inserción en ClickHouse ni lógica de versionado.
+
+## Requisitos previos
+
+- Docker y Docker Compose
+- `make`
+
+## Inicio rápido
+
+Preparar el fichero local de entorno:
 
 ```bash
 make env-init
 ```
 
-Actualmente, el fichero incluye variables para PostgreSQL, ZooKeeper, Kafka, Debezium Connect, el worker y
-ClickHouse.
-
-La configuración de conectores Debezium se versiona como plantilla sin secretos. Las credenciales reales deben quedar
-solo en `.env` en local o en el sistema de despliegue del entorno correspondiente.
-
-## 1. PostgreSQL
-
-Primer paso de infraestructura local: PostgreSQL con dos tablas de prueba (`customers` y `orders`) creadas
-automáticamente al arrancar Docker.
-
-### 1.1 Levantar PostgreSQL
+Levantar toda la infraestructura:
 
 ```bash
-docker compose up -d postgres
+docker compose up -d --build
 ```
 
-Con la configuración por defecto de `.env.example`, la base de datos queda disponible en `localhost:5432` con estas
-credenciales:
-
-- Base de datos: `cdc_sync`
-- Usuario: `cdc_sync`
-- Contraseña: `cdc_sync`
-
-### 1.2 Validar el estado del servicio
-
-Comprobar que los contenedores están sanos:
-
-```bash
-docker compose ps
-```
-
-Listar las tablas creadas:
-
-```bash
-docker compose exec postgres psql -U cdc_sync -d cdc_sync -c "\\dt"
-```
-
-### 1.3 Validar datos de ejemplo
-
-Consultar los datos de ejemplo:
-
-```bash
-docker compose exec postgres psql -U cdc_sync -d cdc_sync -c "SELECT * FROM customers;"
-docker compose exec postgres psql -U cdc_sync -d cdc_sync -c "SELECT * FROM orders;"
-```
-
-### 1.4 Reiniciar el entorno desde cero
-
-Los scripts de inicialización de PostgreSQL solo se ejecutan cuando el volumen de datos está vacío. Para reconstruir la
-base desde cero:
-
-```bash
-docker compose down -v
-docker compose up -d postgres
-```
-
-## 2. ZooKeeper y Kafka
-
-Segundo paso de infraestructura local: añadir la capa de mensajería base para que el stack pueda incorporar después
-Debezium y el worker.
-
-Aunque Kafka moderno puede desplegarse sin ZooKeeper, por ser menos común, se decide ceñirse al stack con ZooKeeper.
-
-### 2.1 Levantar ZooKeeper y Kafka
-
-```bash
-docker compose up -d zookeeper kafka
-```
-
-Con la configuración por defecto de `.env.example`:
-
-- ZooKeeper queda disponible en `localhost:2181`
-- Kafka queda disponible en `localhost:9092` para clientes del host
-- Kafka expone `kafka:29092` para el resto de contenedores del `docker-compose`
-- El estado de ambos servicios queda persistido en volúmenes con nombre para evitar inconsistencias entre recreaciones
-
-### 2.2 Validar el estado de los servicios
-
-Comprobar que ambos contenedores están sanos:
-
-```bash
-docker compose ps
-```
-
-Validar que el broker responde dentro de la red Docker:
-
-```bash
-docker compose exec kafka cub kafka-ready 1 30 -b kafka:29092
-```
-
-### 2.3 Recrear contenedores de ZooKeeper y Kafka
-
-Si fuera necesario recrear solo los contenedores de esta parte del stack:
-
-```bash
-docker compose stop kafka zookeeper
-docker compose rm -f kafka zookeeper
-docker compose up -d zookeeper kafka
-```
-
-Si además se quiere limpiar el estado persistido de Kafka y ZooKeeper, o el entorno local procede de una versión
-anterior del `docker-compose` que usaba volúmenes anónimos, conviene ejecutar una vez este reinicio completo del
-proyecto:
-
-```bash
-docker compose down -v
-docker compose up -d
-```
-
-### 2.4 Validar publicación y consumo en Kafka
-
-Crear el topic técnico de prueba:
-
-```bash
-docker compose exec kafka kafka-topics --create \
-  --if-not-exists \
-  --topic cdc-sync-test \
-  --bootstrap-server kafka:29092 \
-  --partitions 1 \
-  --replication-factor 1
-```
-
-Publicar un mensaje de ejemplo:
-
-```bash
-printf 'ping-kafka-ejemplo\n' | docker compose exec -T kafka kafka-console-producer \
-  --topic cdc-sync-test \
-  --bootstrap-server kafka:29092
-```
-
-Consumir un mensaje y salir tras recibirlo:
-
-```bash
-docker compose exec kafka kafka-console-consumer \
-  --topic cdc-sync-test \
-  --bootstrap-server kafka:29092 \
-  --from-beginning \
-  --max-messages 1
-```
-
-El resultado esperado es que el consumidor muestre `ping-kafka-ejemplo` por pantalla y finalice.
-
-## 3. Debezium Connect
-
-Tercer paso de infraestructura local: añadir el servicio base de Kafka Connect con la imagen oficial de Debezium,
-dejando la captura CDC para el siguiente corte.
-
-### 3.1 Levantar Debezium Connect
-
-```bash
-docker compose up -d connect
-```
-
-Con la configuración por defecto de `.env.example`, la API REST de Connect queda disponible en `localhost:8083`.
-
-### 3.2 Validar el estado del servicio
-
-Comprobar que el contenedor está sano:
-
-```bash
-docker compose ps
-```
-
-Comprobar que la API REST responde:
-
-```bash
-curl -fsS http://localhost:8083/
-```
-
-Comprobar que los plugins de conectores están disponibles:
-
-```bash
-curl -fsS http://localhost:8083/connector-plugins
-```
-
-### 3.3 Reiniciar Debezium Connect desde cero
-
-Si fuera necesario recrear solo este servicio:
-
-```bash
-docker compose stop connect
-docker compose rm -f connect
-docker compose up -d connect
-```
-
-### 3.4 Flujo común para conectores Debezium
-
-Antes de registrar el conector, PostgreSQL debe estar recreado con `wal_level=logical`:
-
-```bash
-docker compose up -d --force-recreate postgres
-docker compose exec postgres psql -U cdc_sync -d cdc_sync -c "SHOW wal_level;"
-```
-
-El resultado esperado es `logical`.
-
-Las plantillas versionadas y las convenciones comunes están en:
-
-```bash
-infrastructure/debezium/connectors/README.md
-```
-
-Renderizar la plantilla del conector con variables locales:
-
-```bash
-make debezium-postgres-render
-```
-
-Aplicar la configuración renderizada de forma idempotente:
+Registrar el conector CDC:
 
 ```bash
 make debezium-postgres-apply
-```
-
-La configuración renderizada queda fuera de Git para evitar subir credenciales locales.
-
-Si se quiere consultar el estado del conector:
-
-```bash
 make debezium-postgres-status
 ```
 
-### 3.5 Registrar el conector PostgreSQL de ejemplo
+## Validación rápida
 
-La plantilla específica de PostgreSQL está en:
-
-```bash
-infrastructure/debezium/connectors/postgresql/source.config.template.json
-```
-
-La estructura ya reserva carpetas independientes para futuros conectores de `mysql` y `mariadb`.
-
-Comprobar el estado del conector PostgreSQL:
-
-```bash
-curl -fsS http://localhost:8083/connectors/postgres-cdc-source/status
-```
-
-El resultado esperado es que el conector y su única tarea queden en estado `RUNNING`.
-
-### 3.6 Validar eventos CDC en Kafka
-
-En un arranque limpio del conector, Debezium realiza primero un *snapshot* inicial de las tablas capturadas.
-Durante esa fase pueden aparecer eventos con `op: "r"` (*read*) al consumir desde el principio del topic.
-
-Una vez completado el *snapshot*, las inserciones nuevas ya se publican como eventos de streaming con `op: "c"`
-(*create*).
-
-Insertar una fila nueva en `customers`:
-
-```bash
-docker compose exec postgres psql -U cdc_sync -d cdc_sync -c \
-  "INSERT INTO customers (email, full_name) VALUES ('cdc-check@example.com', 'CDC Check Customer');"
-```
-
-Consumir el topic CDC de `customers` y buscar ese valor:
-
-```bash
-docker compose exec kafka kafka-console-consumer \
-  --topic cdc_sync.public.customers \
-  --bootstrap-server kafka:29092 \
-  --from-beginning \
-  --timeout-ms 15000
-```
-
-Insertar una fila nueva en `orders` vinculada al cliente anterior:
-
-```bash
-docker compose exec postgres psql -U cdc_sync -d cdc_sync -c \
-  "INSERT INTO orders (customer_id, order_number, total_amount, status) VALUES ((SELECT id FROM customers WHERE email = 'cdc-check@example.com'), 'CDC-CHECK-ORDER', 123.45, 'created');"
-```
-
-Consumir el topic CDC de `orders` y buscar ese `order_number`:
-
-```bash
-docker compose exec kafka kafka-console-consumer \
-  --topic cdc_sync.public.orders \
-  --bootstrap-server kafka:29092 \
-  --from-beginning \
-  --timeout-ms 15000
-```
-
-En esta validación sobre un stack recién levantado, el resultado esperado es que aparezcan ambos eventos en Kafka con
-los valores insertados en `customers` y `orders`. El campo `op` puede ser:
-
-- `r` si el registro ha quedado incluido en el *snapshot* inicial.
-- `c` si el registro ya ha sido capturado en modo streaming.
-
-Si se quiere comprobar específicamente el modo streaming, arrancar primero el consumidor sin `--from-beginning`,
-dejarlo escuchando y luego insertar una nueva fila. En ese caso el evento esperado debe llegar con `op: "c"`.
-
-## 4. Worker
-
-Cuarto paso de infraestructura local: añadir un consumidor base en Python para validar el tramo `Kafka -> worker`
-antes de introducir transformaciones o persistencia en ClickHouse.
-
-### 4.1 Levantar el worker
-
-Con PostgreSQL, Kafka y Debezium Connect ya activos, levantar el worker:
-
-```bash
-docker compose up -d --build worker
-```
-
-Por defecto, el worker se suscribe por patrón regex a los topics CDC de `customers` y `orders`:
-
-```text
-^cdc_sync[.]public[.](customers|orders)$
-```
-
-### 4.2 Validar el estado del worker
-
-Comprobar que el contenedor está levantado:
-
-```bash
-docker compose ps
-```
-
-Seguir los logs del worker:
+En una terminal, seguir los logs del worker:
 
 ```bash
 docker compose logs -f worker
 ```
 
-Al arrancar correctamente, debe aparecer una línea similar a `worker_started`.
-
-### 4.3 Validar el consumo de eventos CDC
-
-Tras un arranque limpio del stack, reaplicar primero el conector PostgreSQL:
+En otra terminal, insertar una fila en PostgreSQL:
 
 ```bash
+docker compose exec postgres psql -U cdc_sync -d cdc_sync -c \
+  "INSERT INTO customers (email, full_name) VALUES ('quick-start@example.com', 'Quick Start Customer');"
+```
+
+Resultado esperado:
+
+- Debezium publica el evento en Kafka.
+- El worker imprime una línea `cdc_event` en logs con `quick-start@example.com`.
+
+## Qué incluye esta fase
+
+- PostgreSQL local con tablas de prueba `customers` y `orders`
+- ZooKeeper y Kafka para mensajería
+- Debezium Connect con conector PostgreSQL configurable
+- Worker base en Python que consume eventos CDC y los escribe en logs
+- ClickHouse base como destino analítico futuro
+
+## Documentación detallada
+
+- [Stack local](docs/local-stack.md)
+- [PostgreSQL](docs/postgresql.md)
+- [Kafka y ZooKeeper](docs/kafka.md)
+- [Debezium](docs/debezium.md)
+- [Worker](docs/worker.md)
+- [ClickHouse](docs/clickhouse.md)
+
+## Estado actual
+
+- El alta del conector CDC no se hace automáticamente con `docker compose up`.
+- El flujo soportado y documentado para esta fase es:
+
+```bash
+docker compose up -d --build
 make debezium-postgres-apply
-make debezium-postgres-status
-```
-
-Con el worker escuchando logs, insertar una fila nueva en `customers`:
-
-```bash
-docker compose exec postgres psql -U cdc_sync -d cdc_sync -c \
-  "INSERT INTO customers (email, full_name) VALUES ('worker-check@example.com', 'Worker Check Customer');"
-```
-
-El resultado esperado es que el worker escriba una línea `cdc_event` en sus logs con el topic
-`cdc_sync.public.customers` y el payload del evento recibido.
-
-En el primer arranque del grupo `cdc-sync-worker`, la estrategia por defecto `earliest` puede hacer que el worker
-reproduzca primero eventos históricos del topic, incluidos los del *snapshot* inicial. En ese caso, basta con buscar
-en logs el `email` insertado para confirmar que el evento nuevo también ha sido consumido.
-
-Si se quiere comprobar también la segunda tabla capturada, insertar después una fila en `orders`:
-
-```bash
-docker compose exec postgres psql -U cdc_sync -d cdc_sync -c \
-  "INSERT INTO orders (customer_id, order_number, total_amount, status) VALUES ((SELECT id FROM customers WHERE email = 'worker-check@example.com'), 'WORKER-CHECK-ORDER', 44.90, 'created');"
-```
-
-El resultado esperado es una segunda línea `cdc_event` en el topic `cdc_sync.public.orders`.
-
-## 5. ClickHouse
-
-Quinto paso de infraestructura local: añadir la base analítica de destino para completar el stack descrito en la
-issue, sin introducir todavía tablas de destino ni escrituras desde el worker.
-
-### 5.1 Levantar ClickHouse
-
-Levantar el servicio base de ClickHouse:
-
-```bash
-docker compose up -d clickhouse
-```
-
-Con la configuración por defecto de `.env.example`:
-
-- ClickHouse expone HTTP en `localhost:8123`
-- ClickHouse expone el protocolo nativo en `localhost:9000`
-- la base inicial creada es `cdc_sync_analytics`
-
-### 5.2 Validar el estado del servicio
-
-Comprobar que el contenedor está sano:
-
-```bash
-docker compose ps
-```
-
-Consultar la versión del servidor:
-
-```bash
-docker compose exec clickhouse clickhouse-client --query "SELECT version()"
-```
-
-Comprobar que la BD inicial existe:
-
-```bash
-docker compose exec clickhouse clickhouse-client --query "SHOW DATABASES"
-```
-
-El resultado esperado es que aparezca `cdc_sync_analytics` en el listado.
-
-### 5.3 Reiniciar ClickHouse desde cero
-
-Si fuera necesario recrear solo este servicio:
-
-```bash
-docker compose stop clickhouse
-docker compose rm -f clickhouse
-docker compose up -d clickhouse
 ```
