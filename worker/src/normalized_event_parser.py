@@ -23,12 +23,12 @@ class NormalizedEventParser:
 
         table_name = adapter.extract_table_name(topic, value)
         operation = adapter.extract_operation(value)
-        data = adapter.extract_data(value, operation)
+        source_data = adapter.extract_data(value, operation)
 
         return NormalizedEvent(
             table=table_name,
-            primary_key=self._extract_primary_key(table_name, data),
-            data=data,
+            primary_key=self._extract_primary_key(table_name, source_data),
+            data=self._build_event_data(operation, source_data),
             version=adapter.extract_version(value),
             deleted=operation is Operation.DELETE,
             operation=operation,
@@ -73,3 +73,11 @@ class NormalizedEventParser:
                 return table_config
 
         raise ValueError(f"El topic '{topic}' no existe en la configuracion")
+
+    def _build_event_data(
+        self, operation: Operation, source_data: dict[str, object]
+    ) -> dict[str, object]:
+        if operation is Operation.DELETE:
+            return {}
+
+        return source_data

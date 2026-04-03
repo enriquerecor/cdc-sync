@@ -61,7 +61,7 @@ def test_parse_delete_event_uses_before_snapshot(
     assert event is not None
     assert event.table == "orders"
     assert event.primary_key == {"id": 3}
-    assert event.data == {"id": 3, "status": "cancelled"}
+    assert event.data == {}
     assert event.version == 303
     assert event.deleted is True
     assert event.operation is Operation.DELETE
