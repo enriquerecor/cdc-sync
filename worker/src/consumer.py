@@ -19,7 +19,7 @@ def build_consumer(config: WorkerConfig) -> KafkaConsumer:
         key_deserializer=_deserialize_payload,
         value_deserializer=_deserialize_payload,
     )
-    consumer.subscribe(pattern=config.kafka_topic_pattern)
+    consumer.subscribe(topics=config.kafka_topics)
 
     return consumer
 

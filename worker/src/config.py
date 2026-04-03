@@ -7,7 +7,7 @@ VALID_AUTO_OFFSET_RESET = {"earliest", "latest"}
 @dataclass(frozen=True)
 class WorkerConfig:
     kafka_bootstrap_servers: str
-    kafka_topic_pattern: str
+    kafka_topics: list[str]
     kafka_client_id: str
     kafka_group_id: str
     kafka_auto_offset_reset: str
@@ -16,7 +16,7 @@ class WorkerConfig:
 
 def load_config() -> WorkerConfig:
     kafka_bootstrap_servers = _read_required_env("WORKER_KAFKA_BOOTSTRAP_SERVERS")
-    kafka_topic_pattern = _read_required_env("WORKER_KAFKA_TOPIC_PATTERN")
+    kafka_topics = _read_topics_env("WORKER_KAFKA_TOPICS")
     kafka_client_id = _read_required_env("WORKER_KAFKA_CLIENT_ID")
     kafka_group_id = _read_required_env("WORKER_KAFKA_GROUP_ID")
     kafka_auto_offset_reset = _read_required_env("WORKER_KAFKA_AUTO_OFFSET_RESET")
@@ -29,7 +29,7 @@ def load_config() -> WorkerConfig:
 
     return WorkerConfig(
         kafka_bootstrap_servers=kafka_bootstrap_servers,
-        kafka_topic_pattern=kafka_topic_pattern,
+        kafka_topics=kafka_topics,
         kafka_client_id=kafka_client_id,
         kafka_group_id=kafka_group_id,
         kafka_auto_offset_reset=kafka_auto_offset_reset,
@@ -58,3 +58,13 @@ def _read_positive_int_env(name: str) -> int:
         raise ValueError(f"La variable {name} debe ser mayor que 0")
 
     return value
+
+
+def _read_topics_env(name: str) -> list[str]:
+    raw_topics = _read_required_env(name)
+    topics = [topic.strip() for topic in raw_topics.split(",") if topic.strip()]
+
+    if not topics:
+        raise ValueError(f"La variable {name} debe incluir al menos un topic")
+
+    return topics

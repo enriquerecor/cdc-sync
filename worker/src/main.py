@@ -13,9 +13,9 @@ def main() -> None:
 
     config = load_config()
     logging.info(
-        "worker_started bootstrap_servers=%s topic_pattern=%s client_id=%s group_id=%s",
+        "worker_started bootstrap_servers=%s topics=%s client_id=%s group_id=%s",
         config.kafka_bootstrap_servers,
-        config.kafka_topic_pattern,
+        ",".join(config.kafka_topics),
         config.kafka_client_id,
         config.kafka_group_id,
     )
