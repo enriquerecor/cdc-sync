@@ -3,8 +3,9 @@
 ## Alcance en esta fase
 
 - consumidor base en Python
-- suscripción a los topics CDC de `customers` y `orders`
-- logging de eventos recibidos
+- suscripción a los topics CDC habilitados en la configuración
+- normalización de eventos CDC a un contrato interno común
+- logging de `NormalizedEvent`
 
 ## Arranque
 
@@ -19,9 +20,15 @@ Esto crea `worker/config/tables.json` a partir de `worker/config/tables.example.
 El fichero real de configuracion del entorno no se versiona. El ejemplo versionado define el contrato base esperado
 por el worker.
 
+Contrato minimo actual:
+
+- `version`
+- `tables`
+
 Contrato minimo actual por tabla:
 
 - `enabled`
+- `source.adapter`
 - `source.connection`
 - `source.schema` (opcional)
 - `source.table`
@@ -41,7 +48,25 @@ Topics por defecto:
 - `cdc_sync.public.orders`
 
 Los topics se derivan del fichero de tablas mediante `source.topic`.
+El adapter usado para cada tabla se declara en `source.adapter`.
 La ruta del fichero de tablas se configura mediante `WORKER_TABLE_CONFIG_PATH` en `.env`.
+
+## Contrato normalizado
+
+El worker transforma cada evento CDC soportado a un `NormalizedEvent` con estos campos:
+
+- `table`
+- `primary_key`
+- `data`
+- `version`
+- `deleted`
+- `operation`
+
+Semantica actual:
+
+- `insert`, `update` y `snapshot` exponen la fila normalizada en `data`
+- `delete` expone `primary_key`, `version`, `deleted=true` y `data={}`
+- para Debezium PostgreSQL, `version` se resuelve de forma estricta desde `payload.source.lsn`
 
 ## Validaciones
 
@@ -95,7 +120,7 @@ docker compose exec postgres psql -U cdc_sync -d cdc_sync -c \
 
 Resultado esperado:
 
-- el worker escribe una línea `cdc_event` para `cdc_sync.public.customers`
+- el worker escribe una línea `cdc_event` con `table=customers` y `operation=insert`
 
 Validar también `orders`:
 
@@ -106,7 +131,7 @@ docker compose exec postgres psql -U cdc_sync -d cdc_sync -c \
 
 Resultado esperado:
 
-- aparece una segunda línea `cdc_event` para `cdc_sync.public.orders`
+- aparece una segunda línea `cdc_event` con `table=orders` y `operation=insert`
 
 ## Nota sobre offsets
 

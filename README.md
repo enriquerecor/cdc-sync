@@ -9,7 +9,7 @@ PostgreSQL -> Debezium -> Kafka -> Worker (Python) -> ClickHouse
 ```
 
 Esta fase deja levantada la infraestructura base y valida la conectividad extremo a extremo. No incluye todavía
-transformación de eventos, inserción en ClickHouse ni lógica de versionado.
+inserción en ClickHouse ni sincronización analítica de extremo a extremo.
 
 ## Requisitos previos
 
@@ -57,14 +57,14 @@ docker compose exec postgres psql -U cdc_sync -d cdc_sync -c \
 Resultado esperado:
 
 - Debezium publica el evento en Kafka.
-- El worker imprime una línea `cdc_event` en logs con `quick-start@example.com`.
+- El worker imprime una línea `cdc_event` en logs con `table=customers`, `operation=insert` y el contenido normalizado de la fila.
 
 ## Qué incluye esta fase
 
 - PostgreSQL local con tablas de prueba `customers` y `orders`
 - ZooKeeper y Kafka para mensajería
 - Debezium Connect con conector PostgreSQL configurable
-- Worker base en Python que consume eventos CDC y los escribe en logs
+- Worker base en Python que consume eventos CDC, los normaliza y los escribe en logs
 - ClickHouse base como destino analítico futuro
 
 ## Documentación detallada
