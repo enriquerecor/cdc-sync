@@ -1,7 +1,9 @@
 import logging
 
+from adapters.registry import build_change_event_adapters
 from config import load_config
 from consumer import build_consumer, consume_forever
+from normalized_event_parser import NormalizedEventParser
 
 
 def main() -> None:
@@ -23,10 +25,14 @@ def main() -> None:
         config.table_config_path,
     )
 
+    event_parser = NormalizedEventParser(
+        adapters=build_change_event_adapters(),
+        tables=config.tables,
+    )
     consumer = build_consumer(config)
 
     try:
-        consume_forever(consumer, config)
+        consume_forever(consumer, config, event_parser)
     except KeyboardInterrupt:
         logging.info("worker_stopped")
 
