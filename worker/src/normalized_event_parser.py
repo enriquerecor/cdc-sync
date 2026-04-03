@@ -7,27 +7,29 @@ from table_config import TableConfig
 
 @dataclass(frozen=True)
 class NormalizedEventParser:
-    adapter: ChangeEventAdapter
+    adapters: dict[str, ChangeEventAdapter]
     tables: dict[str, TableConfig]
 
     def parse(
         self, topic: str, value: dict[str, object] | None
     ) -> NormalizedEvent | None:
-        if self.adapter.is_tombstone(value):
+        adapter = self._get_adapter_for_topic(topic)
+
+        if adapter.is_tombstone(value):
             return None
 
         if not isinstance(value, dict):
             raise TypeError("El valor del evento debe ser un objeto JSON")
 
-        table_name = self.adapter.extract_table_name(topic, value)
-        operation = self.adapter.extract_operation(value)
-        data = self.adapter.extract_data(value, operation)
+        table_name = adapter.extract_table_name(topic, value)
+        operation = adapter.extract_operation(value)
+        data = adapter.extract_data(value, operation)
 
         return NormalizedEvent(
             table=table_name,
             primary_key=self._extract_primary_key(table_name, data),
             data=data,
-            version=self.adapter.extract_version(value),
+            version=adapter.extract_version(value),
             deleted=operation is Operation.DELETE,
             operation=operation,
         )
@@ -54,3 +56,20 @@ class NormalizedEventParser:
             return self.tables[table_name]
         except KeyError as exc:
             raise ValueError(f"La tabla '{table_name}' no existe en la configuracion") from exc
+
+    def _get_adapter_for_topic(self, topic: str) -> ChangeEventAdapter:
+        table_config = self._get_table_config_by_topic(topic)
+
+        try:
+            return self.adapters[table_config.source.adapter]
+        except KeyError as exc:
+            raise ValueError(
+                f"El adapter '{table_config.source.adapter}' no existe en la configuracion del worker"
+            ) from exc
+
+    def _get_table_config_by_topic(self, topic: str) -> TableConfig:
+        for table_config in self.tables.values():
+            if table_config.source.topic == topic:
+                return table_config
+
+        raise ValueError(f"El topic '{topic}' no existe en la configuracion")

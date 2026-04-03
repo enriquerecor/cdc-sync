@@ -6,6 +6,7 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class TableSourceConfig:
+    adapter: str
     table: str
     topic: str
     connection: str
@@ -84,6 +85,9 @@ def _build_table_config(logical_name: object, raw_table: object) -> TableConfig:
             table_config["enabled"], f"La tabla '{table_name}'.enabled"
         ),
         source=TableSourceConfig(
+            adapter=_expect_str(
+                source_config["adapter"], f"La tabla '{table_name}'.source.adapter"
+            ),
             table=_expect_str(
                 source_config["table"], f"La tabla '{table_name}'.source.table"
             ),

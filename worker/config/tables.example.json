@@ -4,6 +4,7 @@
     "customers": {
       "enabled": true,
       "source": {
+        "adapter": "debezium_postgres",
         "connection": "postgres_local",
         "schema": "public",
         "table": "customers",
@@ -17,6 +18,7 @@
     "orders": {
       "enabled": true,
       "source": {
+        "adapter": "debezium_postgres",
         "connection": "postgres_local",
         "schema": "public",
         "table": "orders",
