@@ -99,11 +99,11 @@ services:
         condition: service_healthy
     environment:
       WORKER_KAFKA_BOOTSTRAP_SERVERS: ${WORKER_KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
-      WORKER_KAFKA_TOPICS: ${WORKER_KAFKA_TOPICS:-cdc_sync.public.customers,cdc_sync.public.orders}
       WORKER_KAFKA_CLIENT_ID: ${WORKER_KAFKA_CLIENT_ID:-cdc-sync-worker}
       WORKER_KAFKA_GROUP_ID: ${WORKER_KAFKA_GROUP_ID:-cdc-sync-worker}
       WORKER_KAFKA_AUTO_OFFSET_RESET: ${WORKER_KAFKA_AUTO_OFFSET_RESET:-earliest}
       WORKER_KAFKA_POLL_TIMEOUT_MS: ${WORKER_KAFKA_POLL_TIMEOUT_MS:-1000}
+      WORKER_TABLE_CONFIG_PATH: ${WORKER_TABLE_CONFIG_PATH:-config/tables.json}
     restart: unless-stopped
 
   clickhouse:
