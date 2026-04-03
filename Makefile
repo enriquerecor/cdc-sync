@@ -3,6 +3,9 @@ SHELL := /bin/bash
 ENV_FILE ?= .env
 WORKER_TABLE_CONFIG_TEMPLATE := worker/config/tables.example.json
 WORKER_TABLE_CONFIG_OUTPUT := worker/config/tables.json
+WORKER_TEST_VENV_DIR := .venv
+WORKER_TEST_VENV_PYTHON := $(WORKER_TEST_VENV_DIR)/bin/python
+WORKER_TEST_VENV_STAMP := $(WORKER_TEST_VENV_DIR)/.worker-test-installed
 POSTGRES_CONNECTOR_TEMPLATE := infrastructure/debezium/connectors/postgresql/source.config.template.json
 POSTGRES_CONNECTOR_OUTPUT := infrastructure/debezium/connectors/generated/postgresql-source.local.json
 CONNECT_RETRY_ATTEMPTS ?= 15
@@ -10,11 +13,13 @@ CONNECT_RETRY_DELAY_SECONDS ?= 2
 
 .DEFAULT_GOAL := help
 
-.PHONY: help env-init debezium-postgres-render debezium-postgres-apply debezium-postgres-status
+.PHONY: help env-init worker-test-deps worker-test debezium-postgres-render debezium-postgres-apply debezium-postgres-status
 
 help:
 	@echo "Objetivos disponibles:"
 	@echo "  make env-init"
+	@echo "  make worker-test-deps"
+	@echo "  make worker-test"
 	@echo "  make debezium-postgres-render"
 	@echo "  make debezium-postgres-apply"
 	@echo "  make debezium-postgres-status"
@@ -32,6 +37,20 @@ env-init:
 		cp "$(WORKER_TABLE_CONFIG_TEMPLATE)" "$(WORKER_TABLE_CONFIG_OUTPUT)"; \
 		echo "$(WORKER_TABLE_CONFIG_OUTPUT) creado a partir de $(WORKER_TABLE_CONFIG_TEMPLATE)"; \
 	fi
+
+worker-test-deps: $(WORKER_TEST_VENV_STAMP)
+	@echo "Entorno virtual del worker disponible en $(WORKER_TEST_VENV_DIR)"
+
+worker-test: $(WORKER_TEST_VENV_STAMP)
+	@PYTHONPATH="worker/src" \
+		"$(WORKER_TEST_VENV_PYTHON)" -m pytest worker/tests -v
+
+$(WORKER_TEST_VENV_PYTHON):
+	@python3 -m venv "$(WORKER_TEST_VENV_DIR)"
+
+$(WORKER_TEST_VENV_STAMP): worker/requirements.txt worker/requirements-dev.txt | $(WORKER_TEST_VENV_PYTHON)
+	@"$(WORKER_TEST_VENV_PYTHON)" -m pip install -r worker/requirements-dev.txt
+	@touch "$(WORKER_TEST_VENV_STAMP)"
 
 debezium-postgres-render:
 	@./infrastructure/debezium/connectors/render-template.sh \

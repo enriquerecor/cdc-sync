@@ -61,6 +61,22 @@ Resultado esperado al arrancar:
 
 - aparece una línea `worker_started`
 
+## Tests
+
+> Este flujo usa `.venv` y `worker/requirements-dev.txt`, y no modifica la imagen runtime del worker.
+
+Preparar el entorno virtual local del repo con las dependencias de desarrollo del worker:
+
+```bash
+make worker-test-deps
+```
+
+Ejecutar la suite de tests del worker:
+
+```bash
+make worker-test
+```
+
 ## Validación de consumo
 
 Registrar el conector si el stack se ha levantado desde cero:
