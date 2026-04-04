@@ -1,7 +1,10 @@
-FROM python:3.13
-WORKDIR /cdc
-COPY requirements.txt requirements.txt
-RUN python3 -m pip install -r requirements.txt
-COPY src .
-ENV PYTHONPATH="${PYTHONPATH}:/cdc"
-CMD ["python3", "-m", "cdc", "inventory.customers.yml", "kafka:9092"]
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY src ./src
+
+CMD ["python", "src/main.py"]

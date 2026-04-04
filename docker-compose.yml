@@ -1,104 +1,137 @@
 services:
-  # --- WORKER - PYTHON ---
-  cdc:
-    build: ./worker
-    container_name: cdc
-    restart: on-failure
-    # Fichero de configuración: inventory.customers.yml
-    command: [ "python", "src/cdc.py", "inventory.customers.yml", "kafka:9092" ]
+  postgres:
+    image: postgres:16-alpine
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cdc_sync}
+      POSTGRES_USER: ${POSTGRES_USER:-cdc_sync}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cdc_sync}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - ./worker:/cdc
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/postgresql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-cdc_sync} -d ${POSTGRES_DB:-cdc_sync}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.11
+    environment:
+      ZOOKEEPER_CLIENT_PORT: ${ZOOKEEPER_PORT:-2181}
+      ZOOKEEPER_TICK_TIME: ${ZOOKEEPER_TICK_TIME:-2000}
+    ports:
+      - "${ZOOKEEPER_PORT:-2181}:2181"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
+    healthcheck:
+      test: ["CMD-SHELL", "bash -ec 'exec 3<>/dev/tcp/127.0.0.1/2181'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.11
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: ${KAFKA_BROKER_ID:-1}
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:${KAFKA_PORT:-9092}
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: ${KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR:-1}
+    ports:
+      - "${KAFKA_PORT:-9092}:9092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "cub kafka-ready 1 30 -b localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  connect:
+    image: quay.io/debezium/connect:3.4
     depends_on:
       kafka:
-        condition: service_started
-      mysql:
         condition: service_healthy
-      clickhouse:
-        condition: service_healthy
-
-  # --- MYSQL - ORIGEN ---
-  mysql:
-    platform: linux/amd64
-    image: quay.io/debezium/example-mysql:3.0
-    container_name: mysql
-    ports:
-      - 3306:3306
     environment:
-      - MYSQL_ROOT_PASSWORD=debezium
-      - MYSQL_ROOT_HOST=%
-      - MYSQL_USER=mysqluser
-      - MYSQL_PASSWORD=mysqlpw
+      BOOTSTRAP_SERVERS: ${CONNECT_BOOTSTRAP_SERVERS:-kafka:29092}
+      GROUP_ID: ${CONNECT_GROUP_ID:-1}
+      CONFIG_STORAGE_TOPIC: ${CONNECT_CONFIG_STORAGE_TOPIC:-connect_configs}
+      OFFSET_STORAGE_TOPIC: ${CONNECT_OFFSET_STORAGE_TOPIC:-connect_offsets}
+      STATUS_STORAGE_TOPIC: ${CONNECT_STATUS_STORAGE_TOPIC:-connect_statuses}
+      CONFIG_STORAGE_REPLICATION_FACTOR: ${CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR:-1}
+      OFFSET_STORAGE_REPLICATION_FACTOR: ${CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR:-1}
+      STATUS_STORAGE_REPLICATION_FACTOR: ${CONNECT_STATUS_STORAGE_REPLICATION_FACTOR:-1}
+      REST_HOST_NAME: ${CONNECT_REST_HOST_NAME:-0.0.0.0}
+      REST_PORT: ${CONNECT_PORT:-8083}
+    ports:
+      - "${CONNECT_PORT:-8083}:8083"
     healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pdebezium" ]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+      test: ["CMD-SHELL", "bash -ec 'exec 3<>/dev/tcp/127.0.0.1/8083'"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
-  # --- CLICKHOUSE - DESTINO ---
-  clickhouse:
-    image: clickhouse/clickhouse-server:25.3
-    container_name: clickhouse
-    ports:
-      - 8123:8123
-      - 9000:9000
+  worker:
+    build:
+      context: ./worker
+    depends_on:
+      kafka:
+        condition: service_healthy
     environment:
-      - CLICKHOUSE_DB=inventory      # Coincide con tu inventory.customers.yml
-      - CLICKHOUSE_USER=default
-      - CLICKHOUSE_PASSWORD=default
+      WORKER_KAFKA_BOOTSTRAP_SERVERS: ${WORKER_KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+      WORKER_KAFKA_TOPICS: ${WORKER_KAFKA_TOPICS:-cdc_sync.public.customers,cdc_sync.public.orders}
+      WORKER_KAFKA_CLIENT_ID: ${WORKER_KAFKA_CLIENT_ID:-cdc-sync-worker}
+      WORKER_KAFKA_GROUP_ID: ${WORKER_KAFKA_GROUP_ID:-cdc-sync-worker}
+      WORKER_KAFKA_AUTO_OFFSET_RESET: ${WORKER_KAFKA_AUTO_OFFSET_RESET:-earliest}
+      WORKER_KAFKA_POLL_TIMEOUT_MS: ${WORKER_KAFKA_POLL_TIMEOUT_MS:-1000}
+    restart: unless-stopped
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:${CLICKHOUSE_VERSION:-25.10}
+    environment:
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB:-cdc_sync_analytics}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-cdc_sync}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-cdc_sync}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: ${CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT:-1}
+    ports:
+      - "${CLICKHOUSE_HTTP_PORT:-8123}:8123"
+      - "${CLICKHOUSE_NATIVE_PORT:-9000}:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
     ulimits:
       nofile:
         soft: 262144
         hard: 262144
     healthcheck:
-      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/ping" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD-SHELL", "clickhouse-client --query 'SELECT 1'"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
 
-  # --- ZOOKEEPER (necesario para Kafka) ---
-  zookeeper:
-    image: quay.io/debezium/zookeeper:3.0
-    container_name: zookeeper
-    ports:
-      - 2181:2181
-      - 2888:2888
-      - 3888:3888
-
-  # --- KAFKA BROKER ---
-  kafka:
-    image: quay.io/debezium/kafka:3.0
-    container_name: kafka
-    ports:
-      - 9092:9092
-    environment:
-      - ZOOKEEPER_CONNECT=zookeeper:2181
-    depends_on:
-      - zookeeper
-
-  # --- DEBEZIUM SERVER ---
-  debezium:
-    platform: linux/amd64
-    image: quay.io/debezium/server:3.0
-    container_name: debezium
-    ports:
-      - 8080:8080
-    depends_on:
-      kafka:
-        condition: service_started
-      mysql:
-        condition: service_healthy
-    volumes:
-      # Debezium guardará aquí su memoria
-      - ./worker/config:/debezium/config
-      - ./worker/data:/debezium/data
-
-  # --- KAFKA UI ---
-  kafka-ui:
-    image: provectuslabs/kafka-ui:latest
-    container_name: kafka-ui
-    ports:
-      - 8085:8080
-    environment:
-      DYNAMIC_CONFIG_ENABLED: 'true'
-      KAFKA_CLUSTERS_0_NAME: local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+volumes:
+  postgres_data:
+  zookeeper_data:
+  zookeeper_log:
+  kafka_data:
+  clickhouse_data:

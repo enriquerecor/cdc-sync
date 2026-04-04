@@ -1,0 +1,14 @@
+{
+  "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+  "database.hostname": "${DEBEZIUM_POSTGRES_HOST}",
+  "database.port": "${DEBEZIUM_POSTGRES_PORT}",
+  "database.user": "${DEBEZIUM_POSTGRES_USER}",
+  "database.password": "${DEBEZIUM_POSTGRES_PASSWORD}",
+  "database.dbname": "${DEBEZIUM_POSTGRES_DB}",
+  "plugin.name": "pgoutput",
+  "topic.prefix": "${DEBEZIUM_POSTGRES_TOPIC_PREFIX}",
+  "slot.name": "${DEBEZIUM_POSTGRES_SLOT_NAME}",
+  "publication.name": "${DEBEZIUM_POSTGRES_PUBLICATION_NAME}",
+  "publication.autocreate.mode": "filtered",
+  "table.include.list": "${DEBEZIUM_POSTGRES_TABLE_INCLUDE_LIST}"
+}
