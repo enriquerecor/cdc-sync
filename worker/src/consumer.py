@@ -74,7 +74,7 @@ def _log_normalized_event(
     event: NormalizedEvent,
 ) -> None:
     LOGGER.info(
-        "cdc_event client_id=%s topic=%s partition=%s offset=%s table=%s operation=%s version=%s deleted=%s primary_key=%s data=%s",
+        "cdc_event client_id=%s topic=%s partition=%s offset=%s table=%s operation=%s version=%s source_position=%s deleted=%s primary_key=%s data=%s",
         config.kafka_client_id,
         record.topic,
         record.partition,
@@ -82,6 +82,7 @@ def _log_normalized_event(
         event.table,
         event.operation.value,
         event.version,
+        event.source_position,
         event.deleted,
         event.primary_key,
         event.data,

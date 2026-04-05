@@ -59,14 +59,18 @@ El worker transforma cada evento CDC soportado a un `NormalizedEvent` con estos 
 - `primary_key`
 - `data`
 - `version`
+- `source_position`
 - `deleted`
 - `operation`
 
 Semantica actual:
 
 - `insert`, `update` y `snapshot` exponen la fila normalizada en `data`
-- `delete` expone `primary_key`, `version`, `deleted=true` y `data={}`
+- `delete` expone `primary_key`, `version`, `source_position`, `deleted=true` y `data={}`
+- `version` es un valor comparable por PK para resolver el estado final en el pipeline y en el sink
+- `source_position` conserva la metadata de posicion original del origen para trazabilidad y futuros adapters
 - para Debezium PostgreSQL, `version` se resuelve de forma estricta desde `payload.source.lsn`
+- para Debezium PostgreSQL, `source_position` se expone como `{"lsn": <valor>}`
 
 ## Validaciones
 

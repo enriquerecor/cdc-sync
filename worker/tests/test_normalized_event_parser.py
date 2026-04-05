@@ -22,6 +22,7 @@ def test_parse_insert_event(parser: NormalizedEventParser) -> None:
     assert event.primary_key == {"id": 1}
     assert event.data == {"id": 1, "email": "insert@example.com"}
     assert event.version == 101
+    assert event.source_position == {"lsn": 101}
     assert event.deleted is False
     assert event.operation is Operation.INSERT
 
@@ -41,6 +42,7 @@ def test_parse_update_event(parser: NormalizedEventParser) -> None:
     assert event.primary_key == {"id": 2}
     assert event.data == {"id": 2, "email": "update@example.com"}
     assert event.version == 202
+    assert event.source_position == {"lsn": 202}
     assert event.deleted is False
     assert event.operation is Operation.UPDATE
 
@@ -63,6 +65,7 @@ def test_parse_delete_event_uses_before_snapshot(
     assert event.primary_key == {"id": 3}
     assert event.data == {}
     assert event.version == 303
+    assert event.source_position == {"lsn": 303}
     assert event.deleted is True
     assert event.operation is Operation.DELETE
 
@@ -82,6 +85,7 @@ def test_parse_snapshot_event(parser: NormalizedEventParser) -> None:
     assert event.primary_key == {"id": 4}
     assert event.data == {"id": 4, "email": "snapshot@example.com"}
     assert event.version == 404
+    assert event.source_position == {"lsn": 404}
     assert event.deleted is False
     assert event.operation is Operation.SNAPSHOT
 

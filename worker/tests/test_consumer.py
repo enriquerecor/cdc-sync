@@ -76,6 +76,8 @@ def test_log_records_logs_normalized_event(
     assert "cdc_event client_id=cdc-sync-worker" in caplog.messages[0]
     assert "table=customers" in caplog.messages[0]
     assert "operation=insert" in caplog.messages[0]
+    assert "version=707" in caplog.messages[0]
+    assert "source_position={'lsn': 707}" in caplog.messages[0]
     assert "primary_key={'id': 8}" in caplog.messages[0]
     assert "data={'id': 8, 'email': 'consumer-log@example.com'}" in caplog.messages[0]
     assert "value=" not in caplog.messages[0]

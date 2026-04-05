@@ -30,6 +30,7 @@ class NormalizedEventParser:
             primary_key=self._extract_primary_key(table_name, source_data),
             data=self._build_event_data(operation, source_data),
             version=adapter.extract_version(value),
+            source_position=adapter.extract_source_position(value),
             deleted=operation is Operation.DELETE,
             operation=operation,
         )

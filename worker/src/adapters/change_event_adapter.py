@@ -19,4 +19,7 @@ class ChangeEventAdapter(Protocol):
         """Extract the row snapshot that corresponds to the normalized operation."""
 
     def extract_version(self, value: dict[str, object]) -> int:
-        """Resolve the event version according to the explicit source strategy."""
+        """Resolve a comparable version value for the normalized event."""
+
+    def extract_source_position(self, value: dict[str, object]) -> dict[str, object]:
+        """Expose source-specific position metadata for tracing and future adapters."""
