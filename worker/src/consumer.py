@@ -1,5 +1,4 @@
 import json
-import logging
 from json import JSONDecodeError
 from typing import Optional
 
@@ -7,10 +6,9 @@ from kafka import KafkaConsumer
 from kafka.consumer.fetcher import ConsumerRecord
 
 from config import WorkerConfig
+from event_sink import EventSink
 from normalized_event import NormalizedEvent
 from normalized_event_parser import NormalizedEventParser
-
-LOGGER = logging.getLogger(__name__)
 
 
 def build_consumer(config: WorkerConfig) -> KafkaConsumer:
@@ -32,18 +30,20 @@ def consume_forever(
     consumer: KafkaConsumer,
     config: WorkerConfig,
     event_parser: NormalizedEventParser,
+    event_sink: EventSink,
 ) -> None:
     try:
         while True:
             polled_records = consumer.poll(timeout_ms=config.kafka_poll_timeout_ms)
-            _log_records(config, event_parser, polled_records)
+            _persist_records(config, event_parser, event_sink, polled_records)
     finally:
         consumer.close()
 
 
-def _log_records(
+def _persist_records(
     config: WorkerConfig,
     event_parser: NormalizedEventParser,
+    event_sink: EventSink,
     polled_records: dict[object, list[ConsumerRecord]],
 ) -> None:
     for _, records in polled_records.items():
@@ -52,7 +52,7 @@ def _log_records(
             if normalized_event is None:
                 continue
 
-            _log_normalized_event(config, record, normalized_event)
+            _persist_event(config, record, normalized_event, event_sink)
 
 
 def _parse_record(
@@ -68,24 +68,22 @@ def _parse_record(
         ) from exc
 
 
-def _log_normalized_event(
+def _persist_event(
     config: WorkerConfig,
     record: ConsumerRecord,
     event: NormalizedEvent,
+    event_sink: EventSink,
 ) -> None:
-    LOGGER.info(
-        "cdc_event client_id=%s topic=%s partition=%s offset=%s table=%s operation=%s version=%s deleted=%s primary_key=%s data=%s",
-        config.kafka_client_id,
-        record.topic,
-        record.partition,
-        record.offset,
-        event.table,
-        event.operation.value,
-        event.version,
-        event.deleted,
-        event.primary_key,
-        event.data,
-    )
+    try:
+        event_sink.persist(event)
+    except Exception as exc:
+        raise RuntimeError(
+            "No se pudo persistir el evento normalizado "
+            f"client_id={config.kafka_client_id} topic={record.topic} "
+            f"partition={record.partition} offset={record.offset} "
+            f"table={event.table} operation={event.operation.value} "
+            f"version={event.version}"
+        ) from exc
 
 
 def _deserialize_payload(payload: Optional[bytes]) -> object | None:

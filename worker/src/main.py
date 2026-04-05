@@ -3,6 +3,7 @@ import logging
 from adapters.registry import build_change_event_adapters
 from config import load_config
 from consumer import build_consumer, consume_forever
+from logging_event_sink import LoggingEventSink
 from normalized_event_parser import NormalizedEventParser
 
 
@@ -29,10 +30,11 @@ def main() -> None:
         adapters=build_change_event_adapters(),
         tables=config.tables,
     )
+    event_sink = LoggingEventSink(client_id=config.kafka_client_id)
     consumer = build_consumer(config)
 
     try:
-        consume_forever(consumer, config, event_parser)
+        consume_forever(consumer, config, event_parser, event_sink)
     except KeyboardInterrupt:
         logging.info("worker_stopped")
 

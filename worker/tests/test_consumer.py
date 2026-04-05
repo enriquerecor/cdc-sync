@@ -1,10 +1,11 @@
-import logging
 from dataclasses import dataclass
 
 import pytest
 
 from config import WorkerConfig
-from consumer import _deserialize_payload, _log_records
+from consumer import _deserialize_payload, _persist_records
+from event_sink import EventSink
+from normalized_event import NormalizedEvent
 from normalized_event_parser import NormalizedEventParser
 
 from .helpers import build_debezium_event, build_table_config
@@ -16,6 +17,19 @@ class FakeRecord:
     partition: int
     offset: int
     value: object
+
+
+@dataclass
+class FakeEventSink(EventSink):
+    persisted_events: list[NormalizedEvent]
+
+    def persist(self, event: NormalizedEvent) -> None:
+        self.persisted_events.append(event)
+
+
+class FailingEventSink(EventSink):
+    def persist(self, event: NormalizedEvent) -> None:
+        raise RuntimeError("sink failure")
 
 
 @pytest.fixture
@@ -52,11 +66,11 @@ def test_deserialize_payload_fails_with_invalid_json() -> None:
         _deserialize_payload(b"{invalid json")
 
 
-def test_log_records_logs_normalized_event(
+def test_persist_records_delegates_normalized_event_to_sink(
     worker_config: WorkerConfig,
     parser: NormalizedEventParser,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
+    sink = FakeEventSink(persisted_events=[])
     record = FakeRecord(
         topic="cdc_sync.public.customers",
         partition=0,
@@ -69,23 +83,23 @@ def test_log_records_logs_normalized_event(
         ),
     )
 
-    with caplog.at_level(logging.INFO):
-        _log_records(worker_config, parser, {object(): [record]})
+    _persist_records(worker_config, parser, sink, {object(): [record]})
 
-    assert len(caplog.messages) == 1
-    assert "cdc_event client_id=cdc-sync-worker" in caplog.messages[0]
-    assert "table=customers" in caplog.messages[0]
-    assert "operation=insert" in caplog.messages[0]
-    assert "primary_key={'id': 8}" in caplog.messages[0]
-    assert "data={'id': 8, 'email': 'consumer-log@example.com'}" in caplog.messages[0]
-    assert "value=" not in caplog.messages[0]
+    assert len(sink.persisted_events) == 1
+    assert sink.persisted_events[0].table == "customers"
+    assert sink.persisted_events[0].operation.value == "insert"
+    assert sink.persisted_events[0].primary_key == {"id": 8}
+    assert sink.persisted_events[0].data == {
+        "id": 8,
+        "email": "consumer-log@example.com",
+    }
 
 
-def test_log_records_skips_tombstones(
+def test_persist_records_skips_tombstones(
     worker_config: WorkerConfig,
     parser: NormalizedEventParser,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
+    sink = FakeEventSink(persisted_events=[])
     record = FakeRecord(
         topic="cdc_sync.public.customers",
         partition=0,
@@ -93,7 +107,29 @@ def test_log_records_skips_tombstones(
         value=None,
     )
 
-    with caplog.at_level(logging.INFO):
-        _log_records(worker_config, parser, {object(): [record]})
+    _persist_records(worker_config, parser, sink, {object(): [record]})
 
-    assert caplog.messages == []
+    assert sink.persisted_events == []
+
+
+def test_persist_records_wraps_sink_errors_with_record_context(
+    worker_config: WorkerConfig,
+    parser: NormalizedEventParser,
+) -> None:
+    record = FakeRecord(
+        topic="cdc_sync.public.customers",
+        partition=2,
+        offset=21,
+        value=build_debezium_event(
+            operation="c",
+            table="customers",
+            lsn=808,
+            after={"id": 9, "email": "sink-error@example.com"},
+        ),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="No se pudo persistir el evento normalizado client_id=cdc-sync-worker topic=cdc_sync.public.customers partition=2 offset=21 table=customers operation=insert version=808",
+    ):
+        _persist_records(worker_config, parser, FailingEventSink(), {object(): [record]})
