@@ -1,12 +1,15 @@
 from dataclasses import dataclass
 
 import pytest
+from kafka.structs import OffsetAndMetadata, TopicPartition
 
 from config import WorkerConfig
 from consumer import _deserialize_payload, _persist_records
+from consumer_errors import EventPersistenceError, OffsetCommitError
 from event_sink import EventSink
 from normalized_event import NormalizedEvent
 from normalized_event_parser import NormalizedEventParser
+from offset_commit_tracker import OffsetCommitTracker
 
 from .helpers import build_debezium_event, build_table_config
 
@@ -30,6 +33,29 @@ class FakeEventSink(EventSink):
 class FailingEventSink(EventSink):
     def persist(self, event: NormalizedEvent) -> None:
         raise RuntimeError("sink failure")
+
+
+@dataclass
+class FakeConsumer:
+    commit_calls: list[dict[TopicPartition, OffsetAndMetadata]]
+
+    def commit(
+        self,
+        offsets: dict[TopicPartition, OffsetAndMetadata] | None = None,
+        timeout_ms: int | None = None,
+    ) -> None:
+        assert timeout_ms is None
+        assert offsets is not None
+        self.commit_calls.append(offsets)
+
+
+class FailingCommitConsumer(FakeConsumer):
+    def commit(
+        self,
+        offsets: dict[TopicPartition, OffsetAndMetadata] | None = None,
+        timeout_ms: int | None = None,
+    ) -> None:
+        raise RuntimeError("commit failure")
 
 
 @pytest.fixture
@@ -70,7 +96,9 @@ def test_persist_records_delegates_normalized_event_to_sink(
     worker_config: WorkerConfig,
     parser: NormalizedEventParser,
 ) -> None:
+    consumer = FakeConsumer(commit_calls=[])
     sink = FakeEventSink(persisted_events=[])
+    commit_tracker = OffsetCommitTracker()
     record = FakeRecord(
         topic="cdc_sync.public.customers",
         partition=0,
@@ -83,7 +111,14 @@ def test_persist_records_delegates_normalized_event_to_sink(
         ),
     )
 
-    _persist_records(worker_config, parser, sink, {object(): [record]})
+    _persist_records(
+        consumer,
+        worker_config,
+        parser,
+        sink,
+        commit_tracker,
+        {object(): [record]},
+    )
 
     assert len(sink.persisted_events) == 1
     assert sink.persisted_events[0].table == "customers"
@@ -95,13 +130,24 @@ def test_persist_records_delegates_normalized_event_to_sink(
         "id": 8,
         "email": "consumer-log@example.com",
     }
+    assert consumer.commit_calls == [
+        {
+            TopicPartition("cdc_sync.public.customers", 0): OffsetAndMetadata(
+                offset=13,
+                metadata=None,
+                leader_epoch=-1,
+            )
+        }
+    ]
 
 
 def test_persist_records_skips_tombstones(
     worker_config: WorkerConfig,
     parser: NormalizedEventParser,
 ) -> None:
+    consumer = FakeConsumer(commit_calls=[])
     sink = FakeEventSink(persisted_events=[])
+    commit_tracker = OffsetCommitTracker()
     record = FakeRecord(
         topic="cdc_sync.public.customers",
         partition=0,
@@ -109,15 +155,33 @@ def test_persist_records_skips_tombstones(
         value=None,
     )
 
-    _persist_records(worker_config, parser, sink, {object(): [record]})
+    _persist_records(
+        consumer,
+        worker_config,
+        parser,
+        sink,
+        commit_tracker,
+        {object(): [record]},
+    )
 
     assert sink.persisted_events == []
+    assert consumer.commit_calls == [
+        {
+            TopicPartition("cdc_sync.public.customers", 0): OffsetAndMetadata(
+                offset=14,
+                metadata=None,
+                leader_epoch=-1,
+            )
+        }
+    ]
 
 
 def test_persist_records_wraps_sink_errors_with_record_context(
     worker_config: WorkerConfig,
     parser: NormalizedEventParser,
 ) -> None:
+    consumer = FakeConsumer(commit_calls=[])
+    commit_tracker = OffsetCommitTracker()
     record = FakeRecord(
         topic="cdc_sync.public.customers",
         partition=2,
@@ -131,7 +195,108 @@ def test_persist_records_wraps_sink_errors_with_record_context(
     )
 
     with pytest.raises(
-        RuntimeError,
+        EventPersistenceError,
         match="No se pudo persistir el evento normalizado client_id=cdc-sync-worker topic=cdc_sync.public.customers partition=2 offset=21 table=customers operation=insert version=808 source_position=\\{'lsn': 808\\}",
     ):
-        _persist_records(worker_config, parser, FailingEventSink(), {object(): [record]})
+        _persist_records(
+            consumer,
+            worker_config,
+            parser,
+            FailingEventSink(),
+            commit_tracker,
+            {object(): [record]},
+        )
+
+    assert consumer.commit_calls == []
+
+
+def test_persist_records_wraps_commit_errors_with_offset_context(
+    worker_config: WorkerConfig,
+    parser: NormalizedEventParser,
+) -> None:
+    consumer = FailingCommitConsumer(commit_calls=[])
+    sink = FakeEventSink(persisted_events=[])
+    commit_tracker = OffsetCommitTracker()
+    record = FakeRecord(
+        topic="cdc_sync.public.customers",
+        partition=0,
+        offset=40,
+        value=build_debezium_event(
+            operation="c",
+            table="customers",
+            lsn=950,
+            after={"id": 12, "email": "commit-error@example.com"},
+        ),
+    )
+
+    with pytest.raises(
+        OffsetCommitError,
+        match="No se pudieron confirmar offsets procesados",
+    ):
+        _persist_records(
+            consumer,
+            worker_config,
+            parser,
+            sink,
+            commit_tracker,
+            {object(): [record]},
+        )
+
+
+def test_persist_records_commits_only_contiguous_offsets_per_partition(
+    worker_config: WorkerConfig,
+    parser: NormalizedEventParser,
+) -> None:
+    consumer = FakeConsumer(commit_calls=[])
+    sink = FakeEventSink(persisted_events=[])
+    commit_tracker = OffsetCommitTracker()
+
+    first_record = FakeRecord(
+        topic="cdc_sync.public.customers",
+        partition=0,
+        offset=30,
+        value=build_debezium_event(
+            operation="c",
+            table="customers",
+            lsn=900,
+            after={"id": 10, "email": "first@example.com"},
+        ),
+    )
+    skipped_offset_record = FakeRecord(
+        topic="cdc_sync.public.customers",
+        partition=0,
+        offset=32,
+        value=build_debezium_event(
+            operation="c",
+            table="customers",
+            lsn=902,
+            after={"id": 11, "email": "third@example.com"},
+        ),
+    )
+
+    _persist_records(
+        consumer,
+        worker_config,
+        parser,
+        sink,
+        commit_tracker,
+        {object(): [first_record]},
+    )
+    _persist_records(
+        consumer,
+        worker_config,
+        parser,
+        sink,
+        commit_tracker,
+        {object(): [skipped_offset_record]},
+    )
+
+    assert consumer.commit_calls == [
+        {
+            TopicPartition("cdc_sync.public.customers", 0): OffsetAndMetadata(
+                offset=31,
+                metadata=None,
+                leader_epoch=-1,
+            )
+        }
+    ]
