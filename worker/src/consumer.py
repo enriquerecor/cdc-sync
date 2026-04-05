@@ -82,7 +82,7 @@ def _persist_event(
             f"client_id={config.kafka_client_id} topic={record.topic} "
             f"partition={record.partition} offset={record.offset} "
             f"table={event.table} operation={event.operation.value} "
-            f"version={event.version}"
+            f"version={event.version} source_position={event.source_position}"
         ) from exc
 
 

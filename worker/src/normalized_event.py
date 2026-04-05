@@ -15,5 +15,6 @@ class NormalizedEvent:
     primary_key: dict[str, object]
     data: dict[str, object]
     version: int
+    source_position: dict[str, object]
     deleted: bool
     operation: Operation

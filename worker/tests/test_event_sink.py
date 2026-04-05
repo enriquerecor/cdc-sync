@@ -25,6 +25,7 @@ def test_event_sink_protocol_accepts_persist_method() -> None:
         primary_key={"id": 1},
         data={"id": 1, "email": "sink@example.com"},
         version=101,
+        source_position={"lsn": 101},
         deleted=False,
         operation=Operation.INSERT,
     )

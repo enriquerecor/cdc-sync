@@ -13,11 +13,12 @@ class LoggingEventSink(EventSink):
 
     def persist(self, event: NormalizedEvent) -> None:
         LOGGER.info(
-            "cdc_event client_id=%s table=%s operation=%s version=%s deleted=%s primary_key=%s data=%s",
+            "cdc_event client_id=%s table=%s operation=%s version=%s source_position=%s deleted=%s primary_key=%s data=%s",
             self.client_id,
             event.table,
             event.operation.value,
             event.version,
+            event.source_position,
             event.deleted,
             event.primary_key,
             event.data,

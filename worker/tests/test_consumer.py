@@ -88,6 +88,8 @@ def test_persist_records_delegates_normalized_event_to_sink(
     assert len(sink.persisted_events) == 1
     assert sink.persisted_events[0].table == "customers"
     assert sink.persisted_events[0].operation.value == "insert"
+    assert sink.persisted_events[0].version == 707
+    assert sink.persisted_events[0].source_position == {"lsn": 707}
     assert sink.persisted_events[0].primary_key == {"id": 8}
     assert sink.persisted_events[0].data == {
         "id": 8,
@@ -130,6 +132,6 @@ def test_persist_records_wraps_sink_errors_with_record_context(
 
     with pytest.raises(
         RuntimeError,
-        match="No se pudo persistir el evento normalizado client_id=cdc-sync-worker topic=cdc_sync.public.customers partition=2 offset=21 table=customers operation=insert version=808",
+        match="No se pudo persistir el evento normalizado client_id=cdc-sync-worker topic=cdc_sync.public.customers partition=2 offset=21 table=customers operation=insert version=808 source_position=\\{'lsn': 808\\}",
     ):
         _persist_records(worker_config, parser, FailingEventSink(), {object(): [record]})

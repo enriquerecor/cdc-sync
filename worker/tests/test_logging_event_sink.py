@@ -15,6 +15,7 @@ def test_logging_event_sink_logs_normalized_event(
         primary_key={"id": 1},
         data={"id": 1, "email": "log-sink@example.com"},
         version=101,
+        source_position={"lsn": 101},
         deleted=False,
         operation=Operation.INSERT,
     )
@@ -26,5 +27,6 @@ def test_logging_event_sink_logs_normalized_event(
     assert "cdc_event client_id=cdc-sync-worker" in caplog.messages[0]
     assert "table=customers" in caplog.messages[0]
     assert "operation=insert" in caplog.messages[0]
+    assert "source_position={'lsn': 101}" in caplog.messages[0]
     assert "primary_key={'id': 1}" in caplog.messages[0]
     assert "data={'id': 1, 'email': 'log-sink@example.com'}" in caplog.messages[0]
