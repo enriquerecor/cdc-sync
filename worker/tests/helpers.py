@@ -56,12 +56,14 @@ def build_debezium_event(
     lsn: int | None,
     after: dict[str, object] | None = None,
     before: dict[str, object] | None = None,
+    after_schema_fields: list[dict[str, object]] | None = None,
+    before_schema_fields: list[dict[str, object]] | None = None,
 ) -> dict[str, Any]:
     source: dict[str, Any] = {"table": table}
     if lsn is not None:
         source["lsn"] = lsn
 
-    return {
+    event: dict[str, Any] = {
         "payload": {
             "op": operation,
             "before": before,
@@ -69,3 +71,32 @@ def build_debezium_event(
             "source": source,
         }
     }
+
+    schema_fields: list[dict[str, object]] = []
+    if before_schema_fields is not None:
+        schema_fields.append(
+            {
+                "type": "struct",
+                "fields": before_schema_fields,
+                "optional": True,
+                "field": "before",
+            }
+        )
+
+    if after_schema_fields is not None:
+        schema_fields.append(
+            {
+                "type": "struct",
+                "fields": after_schema_fields,
+                "optional": True,
+                "field": "after",
+            }
+        )
+
+    if schema_fields:
+        event["schema"] = {
+            "type": "struct",
+            "fields": schema_fields,
+        }
+
+    return event

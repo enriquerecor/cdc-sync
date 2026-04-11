@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+from adapters.debezium_data_normalizer import normalize_debezium_data
 from normalized_event import Operation
 
 
@@ -42,7 +43,11 @@ class BaseDebeziumAdapter(ABC):
                 f"operacion {operation.value}"
             )
 
-        return data
+        data_schema = self._read_data_schema(value, payload_field)
+        if data_schema is None:
+            return data
+
+        return normalize_debezium_data(data, data_schema)
 
     @abstractmethod
     def extract_version(self, value: dict[str, object]) -> int:
@@ -57,6 +62,24 @@ class BaseDebeziumAdapter(ABC):
 
     def _read_source(self, payload: dict[str, object]) -> dict[str, object]:
         return _read_dict(payload.get("source"))
+
+    def _read_data_schema(
+        self,
+        value: dict[str, object],
+        payload_field: str,
+    ) -> dict[str, object] | None:
+        envelope_schema = _read_dict(value.get("schema"))
+        if not envelope_schema:
+            return None
+
+        for field_schema in _read_list(envelope_schema.get("fields")):
+            if not isinstance(field_schema, dict):
+                continue
+
+            if field_schema.get("field") == payload_field:
+                return field_schema
+
+        return None
 
 
 _OPERATION_MAP = {
@@ -87,6 +110,13 @@ def _read_dict(value: object) -> dict[str, object]:
         return value
 
     return {}
+
+
+def _read_list(value: object) -> list[object]:
+    if isinstance(value, list):
+        return value
+
+    return []
 
 
 def _read_string(value: object) -> str | None:
