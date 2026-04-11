@@ -5,7 +5,8 @@
 - consumidor base en Python
 - suscripción a los topics CDC habilitados en la configuración
 - normalización de eventos CDC a un contrato interno común
-- logging de `NormalizedEvent`
+- bootstrap idempotente de base y tablas en ClickHouse al arranque
+- persistencia versionada de eventos normalizados en ClickHouse
 
 ## Arranque
 
@@ -107,6 +108,7 @@ docker compose logs -f worker
 Resultado esperado al arrancar:
 
 - aparece una línea `worker_started`
+- aparece una línea `clickhouse_schema_ready`
 
 ## Tests
 
@@ -142,7 +144,14 @@ docker compose exec postgres psql -U cdc_sync -d cdc_sync -c \
 
 Resultado esperado:
 
-- el worker escribe una línea `cdc_event` con `table=customers` y `operation=insert`
+- aparece una fila versionada en ClickHouse:
+
+```bash
+docker compose exec clickhouse clickhouse-client --query \
+  "SELECT id, email, full_name, deleted FROM cdc_sync_analytics.customers FINAL WHERE email = 'worker-check@example.com'"
+```
+
+- el resultado incluye la fila insertada con `deleted = 0`
 
 Validar también `orders`:
 
@@ -153,7 +162,14 @@ docker compose exec postgres psql -U cdc_sync -d cdc_sync -c \
 
 Resultado esperado:
 
-- aparece una segunda línea `cdc_event` con `table=orders` y `operation=insert`
+- aparece una fila versionada en ClickHouse:
+
+```bash
+docker compose exec clickhouse clickhouse-client --query \
+  "SELECT order_number, status, deleted FROM cdc_sync_analytics.orders FINAL WHERE order_number = 'WORKER-CHECK-ORDER'"
+```
+
+- el resultado incluye la fila insertada con `deleted = 0`
 
 ## Nota sobre offsets
 
