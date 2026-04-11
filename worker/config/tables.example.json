@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "tables": {
     "customers": {
       "enabled": true,
@@ -13,6 +13,15 @@
       "pk": ["id"],
       "sync": {
         "mode": "realtime"
+      },
+      "destination": {
+        "table": "customers",
+        "columns": [
+          { "name": "id", "type": "UInt64", "nullable": false },
+          { "name": "email", "type": "String", "nullable": true },
+          { "name": "full_name", "type": "String", "nullable": true },
+          { "name": "created_at", "type": "DateTime64(3, 'UTC')", "nullable": true }
+        ]
       }
     },
     "orders": {
@@ -27,6 +36,17 @@
       "pk": ["id"],
       "sync": {
         "mode": "realtime"
+      },
+      "destination": {
+        "table": "orders",
+        "columns": [
+          { "name": "id", "type": "UInt64", "nullable": false },
+          { "name": "customer_id", "type": "UInt64", "nullable": true },
+          { "name": "order_number", "type": "String", "nullable": true },
+          { "name": "total_amount", "type": "Decimal(10, 2)", "nullable": true },
+          { "name": "status", "type": "String", "nullable": true },
+          { "name": "created_at", "type": "DateTime64(3, 'UTC')", "nullable": true }
+        ]
       }
     }
   }

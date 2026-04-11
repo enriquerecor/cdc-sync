@@ -1,6 +1,12 @@
 from typing import Any
 
-from table_config import TableConfig, TableSourceConfig, TableSyncConfig
+from table_config import (
+    TableConfig,
+    TableDestinationColumnConfig,
+    TableDestinationConfig,
+    TableSourceConfig,
+    TableSyncConfig,
+)
 
 
 def build_table_config(
@@ -9,6 +15,15 @@ def build_table_config(
     primary_key_fields: tuple[str, ...],
     adapter: str = "debezium_postgres",
 ) -> TableConfig:
+    destination_columns = tuple(
+        TableDestinationColumnConfig(
+            name=field_name,
+            type="UInt64",
+            nullable=False,
+        )
+        for field_name in primary_key_fields
+    )
+
     return TableConfig(
         enabled=True,
         source=TableSourceConfig(
@@ -20,6 +35,10 @@ def build_table_config(
         ),
         primary_key_fields=primary_key_fields,
         sync=TableSyncConfig(mode="realtime"),
+        destination=TableDestinationConfig(
+            table=table,
+            columns=destination_columns,
+        ),
     )
 
 
