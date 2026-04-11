@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, Sequence
 
 from clickhouse_driver import Client
 
@@ -11,14 +11,22 @@ class ClickHouseCommandExecutor(Protocol):
         """Execute a DDL or control statement against ClickHouse."""
 
 
+class ClickHouseRowWriter(Protocol):
+    def insert_rows(self, query: str, rows: Sequence[dict[str, object]]) -> None:
+        """Insert normalized rows into ClickHouse."""
+
+
 @dataclass
-class ClickHouseClient(ClickHouseCommandExecutor):
+class ClickHouseClient(ClickHouseCommandExecutor, ClickHouseRowWriter):
     config: ClickHouseConfig
     database: str | None = None
     _client: Client | None = None
 
     def execute(self, query: str) -> None:
         self._get_client().execute(query)
+
+    def insert_rows(self, query: str, rows: Sequence[dict[str, object]]) -> None:
+        self._get_client().execute(query, list(rows))
 
     def _get_client(self) -> Client:
         if self._client is None:

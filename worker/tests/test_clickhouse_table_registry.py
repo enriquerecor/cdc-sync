@@ -1,3 +1,5 @@
+import pytest
+
 from clickhouse_table_registry import build_clickhouse_table_registry
 from config import ClickHouseConfig
 
@@ -101,3 +103,30 @@ def test_build_table_registry_skips_disabled_tables() -> None:
     )
 
     assert tuple(registry.tables) == ("customers",)
+
+
+def test_build_table_registry_fails_when_non_pk_column_is_not_nullable() -> None:
+    with pytest.raises(
+        ValueError,
+        match="La tabla 'customers' define la columna no PK 'email' como no nullable",
+    ):
+        build_clickhouse_table_registry(
+            ClickHouseConfig(
+                host="clickhouse",
+                port=9000,
+                database="cdc_sync_analytics",
+                user="cdc_sync",
+                password="cdc_sync",
+            ),
+            tables={
+                "customers": build_table_config(
+                    table="customers",
+                    topic="cdc_sync.public.customers",
+                    primary_key_fields=("id",),
+                    destination_columns=(
+                        ("id", "UInt64", False),
+                        ("email", "String", False),
+                    ),
+                )
+            },
+        )

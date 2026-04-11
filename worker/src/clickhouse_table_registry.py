@@ -42,6 +42,22 @@ class ClickHouseTableDefinition:
         return self.business_columns + self.technical_columns
 
     @property
+    def insert_column_names(self) -> tuple[str, ...]:
+        return tuple(column.name for column in self.insert_columns)
+
+    @property
+    def insert_query(self) -> str:
+        insert_columns = ", ".join(
+            _quote_identifier(column_name)
+            for column_name in self.insert_column_names
+        )
+
+        return (
+            f"INSERT INTO {self.qualified_name} "
+            f"({insert_columns}) VALUES"
+        )
+
+    @property
     def create_table_query(self) -> str:
         column_lines = [
             f"    {_quote_identifier(column.name)} {column.ddl_type}"
@@ -107,6 +123,11 @@ def _build_table_definition(
         ClickHouseColumn(name=name, type=column_type, nullable=False)
         for name, column_type in TECHNICAL_COLUMNS
     )
+    _validate_delete_compatibility(
+        logical_name=logical_name,
+        primary_key_fields=table_config.primary_key_fields,
+        business_columns=business_columns,
+    )
 
     return ClickHouseTableDefinition(
         logical_name=logical_name,
@@ -126,6 +147,26 @@ def _build_business_column(
         type=column.type,
         nullable=column.nullable,
     )
+
+
+def _validate_delete_compatibility(
+    logical_name: str,
+    primary_key_fields: tuple[str, ...],
+    business_columns: tuple[ClickHouseColumn, ...],
+) -> None:
+    primary_key_field_set = set(primary_key_fields)
+
+    for column in business_columns:
+        if column.name in primary_key_field_set:
+            continue
+
+        if column.nullable:
+            continue
+
+        raise ValueError(
+            f"La tabla '{logical_name}' define la columna no PK '{column.name}' como no nullable, "
+            "pero el delete logico de ClickHouse en esta fase requiere columnas no PK nullable"
+        )
 
 
 def _quote_identifier(identifier: str) -> str:
