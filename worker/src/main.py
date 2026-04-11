@@ -2,11 +2,11 @@ import logging
 
 from adapters.registry import build_change_event_adapters
 from clickhouse_client import ClickHouseClient
+from clickhouse_event_sink import ClickHouseEventSink
 from clickhouse_schema_manager import ClickHouseSchemaManager
 from clickhouse_table_registry import build_clickhouse_table_registry
-from config import load_config
+from config import WorkerConfig, load_config
 from consumer import build_consumer, consume_forever
-from logging_event_sink import LoggingEventSink
 from normalized_event_parser import NormalizedEventParser
 
 
@@ -33,6 +33,16 @@ def main() -> None:
         adapters=build_change_event_adapters(),
         tables=config.tables,
     )
+    event_sink = _build_event_sink(config)
+    consumer = build_consumer(config)
+
+    try:
+        consume_forever(consumer, config, event_parser, event_sink)
+    except KeyboardInterrupt:
+        logging.info("worker_stopped")
+
+
+def _build_event_sink(config: WorkerConfig) -> ClickHouseEventSink:
     clickhouse_table_registry = build_clickhouse_table_registry(
         config.clickhouse,
         config.tables,
@@ -51,13 +61,14 @@ def main() -> None:
         clickhouse_table_registry.database,
         ",".join(sorted(clickhouse_table_registry.tables)),
     )
-    event_sink = LoggingEventSink(client_id=config.kafka_client_id)
-    consumer = build_consumer(config)
 
-    try:
-        consume_forever(consumer, config, event_parser, event_sink)
-    except KeyboardInterrupt:
-        logging.info("worker_stopped")
+    return ClickHouseEventSink(
+        row_writer=ClickHouseClient(
+            config.clickhouse,
+            database=config.clickhouse.database,
+        ),
+        table_registry=clickhouse_table_registry,
+    )
 
 
 if __name__ == "__main__":
