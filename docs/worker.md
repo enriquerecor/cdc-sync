@@ -3,10 +3,40 @@
 ## Alcance en esta fase
 
 - consumidor base en Python
-- suscripción a los topics CDC de `customers` y `orders`
-- logging de eventos recibidos
+- suscripción a los topics CDC habilitados en la configuración
+- normalización de eventos CDC a un contrato interno común
+- logging de `NormalizedEvent`
 
 ## Arranque
+
+Preparar la configuracion local del worker:
+
+```bash
+make env-init
+```
+
+Esto crea `worker/config/tables.json` a partir de `worker/config/tables.example.json` si todavia no existe.
+
+El fichero real de configuracion del entorno no se versiona. El ejemplo versionado define el contrato base esperado
+por el worker.
+
+Contrato minimo actual:
+
+- `version`
+- `tables`
+
+Contrato minimo actual por tabla:
+
+- `enabled`
+- `source.adapter`
+- `source.connection`
+- `source.schema` (opcional)
+- `source.table`
+- `source.topic`
+- `pk`
+- `sync.mode`
+
+Arrancar el servicio:
 
 ```bash
 docker compose up -d --build worker
@@ -17,7 +47,30 @@ Topics por defecto:
 - `cdc_sync.public.customers`
 - `cdc_sync.public.orders`
 
-La lista se configura mediante `WORKER_KAFKA_TOPICS` en `.env`.
+Los topics se derivan del fichero de tablas mediante `source.topic`.
+El adapter usado para cada tabla se declara en `source.adapter`.
+La ruta del fichero de tablas se configura mediante `WORKER_TABLE_CONFIG_PATH` en `.env`.
+
+## Contrato normalizado
+
+El worker transforma cada evento CDC soportado a un `NormalizedEvent` con estos campos:
+
+- `table`
+- `primary_key`
+- `data`
+- `version`
+- `source_position`
+- `deleted`
+- `operation`
+
+Semantica actual:
+
+- `insert`, `update` y `snapshot` exponen la fila normalizada en `data`
+- `delete` expone `primary_key`, `version`, `source_position`, `deleted=true` y `data={}`
+- `version` es un valor comparable por PK para resolver el estado final en el pipeline y en el sink
+- `source_position` conserva la metadata de posicion original del origen para trazabilidad y futuros adapters
+- para Debezium PostgreSQL, `version` se resuelve de forma estricta desde `payload.source.lsn`
+- para Debezium PostgreSQL, `source_position` se expone como `{"lsn": <valor>}`
 
 ## Validaciones
 
@@ -37,6 +90,22 @@ Resultado esperado al arrancar:
 
 - aparece una línea `worker_started`
 
+## Tests
+
+> Este flujo usa `.venv` y `worker/requirements-dev.txt`, y no modifica la imagen runtime del worker.
+
+Preparar el entorno virtual local del repo con las dependencias de desarrollo del worker:
+
+```bash
+make worker-test-deps
+```
+
+Ejecutar la suite de tests del worker:
+
+```bash
+make worker-test
+```
+
 ## Validación de consumo
 
 Registrar el conector si el stack se ha levantado desde cero:
@@ -55,7 +124,7 @@ docker compose exec postgres psql -U cdc_sync -d cdc_sync -c \
 
 Resultado esperado:
 
-- el worker escribe una línea `cdc_event` para `cdc_sync.public.customers`
+- el worker escribe una línea `cdc_event` con `table=customers` y `operation=insert`
 
 Validar también `orders`:
 
@@ -66,7 +135,7 @@ docker compose exec postgres psql -U cdc_sync -d cdc_sync -c \
 
 Resultado esperado:
 
-- aparece una segunda línea `cdc_event` para `cdc_sync.public.orders`
+- aparece una segunda línea `cdc_event` con `table=orders` y `operation=insert`
 
 ## Nota sobre offsets
 

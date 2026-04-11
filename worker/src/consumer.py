@@ -1,10 +1,14 @@
+import json
 import logging
+from json import JSONDecodeError
 from typing import Optional
 
 from kafka import KafkaConsumer
 from kafka.consumer.fetcher import ConsumerRecord
 
 from config import WorkerConfig
+from normalized_event import NormalizedEvent
+from normalized_event_parser import NormalizedEventParser
 
 LOGGER = logging.getLogger(__name__)
 
@@ -24,33 +28,77 @@ def build_consumer(config: WorkerConfig) -> KafkaConsumer:
     return consumer
 
 
-def consume_forever(consumer: KafkaConsumer, config: WorkerConfig) -> None:
+def consume_forever(
+    consumer: KafkaConsumer,
+    config: WorkerConfig,
+    event_parser: NormalizedEventParser,
+) -> None:
     try:
         while True:
             polled_records = consumer.poll(timeout_ms=config.kafka_poll_timeout_ms)
-            _log_records(config, polled_records)
+            _log_records(config, event_parser, polled_records)
     finally:
         consumer.close()
 
 
 def _log_records(
-    config: WorkerConfig, polled_records: dict[object, list[ConsumerRecord]]
+    config: WorkerConfig,
+    event_parser: NormalizedEventParser,
+    polled_records: dict[object, list[ConsumerRecord]],
 ) -> None:
     for _, records in polled_records.items():
         for record in records:
-            LOGGER.info(
-                "cdc_event client_id=%s topic=%s partition=%s offset=%s key=%s value=%s",
-                config.kafka_client_id,
-                record.topic,
-                record.partition,
-                record.offset,
-                record.key if record.key is not None else "null",
-                record.value if record.value is not None else "null",
-            )
+            normalized_event = _parse_record(record, event_parser)
+            if normalized_event is None:
+                continue
+
+            _log_normalized_event(config, record, normalized_event)
 
 
-def _deserialize_payload(payload: Optional[bytes]) -> Optional[str]:
+def _parse_record(
+    record: ConsumerRecord,
+    event_parser: NormalizedEventParser,
+) -> NormalizedEvent | None:
+    try:
+        return event_parser.parse(record.topic, record.value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "No se pudo normalizar el evento "
+            f"topic={record.topic} partition={record.partition} offset={record.offset}"
+        ) from exc
+
+
+def _log_normalized_event(
+    config: WorkerConfig,
+    record: ConsumerRecord,
+    event: NormalizedEvent,
+) -> None:
+    LOGGER.info(
+        "cdc_event client_id=%s topic=%s partition=%s offset=%s table=%s operation=%s version=%s source_position=%s deleted=%s primary_key=%s data=%s",
+        config.kafka_client_id,
+        record.topic,
+        record.partition,
+        record.offset,
+        event.table,
+        event.operation.value,
+        event.version,
+        event.source_position,
+        event.deleted,
+        event.primary_key,
+        event.data,
+    )
+
+
+def _deserialize_payload(payload: Optional[bytes]) -> object | None:
     if payload is None:
         return None
 
-    return payload.decode("utf-8", errors="replace")
+    try:
+        raw_payload = payload.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError("El payload de Kafka no es UTF-8 valido") from exc
+
+    try:
+        return json.loads(raw_payload)
+    except JSONDecodeError as exc:
+        raise ValueError("El payload de Kafka no es JSON valido") from exc
