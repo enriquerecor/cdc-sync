@@ -1,6 +1,9 @@
 import logging
 
 from adapters.registry import build_change_event_adapters
+from clickhouse_client import ClickHouseClient
+from clickhouse_schema_manager import ClickHouseSchemaManager
+from clickhouse_table_registry import build_clickhouse_table_registry
 from config import load_config
 from consumer import build_consumer, consume_forever
 from logging_event_sink import LoggingEventSink
@@ -29,6 +32,24 @@ def main() -> None:
     event_parser = NormalizedEventParser(
         adapters=build_change_event_adapters(),
         tables=config.tables,
+    )
+    clickhouse_table_registry = build_clickhouse_table_registry(
+        config.clickhouse,
+        config.tables,
+    )
+    clickhouse_schema_manager = ClickHouseSchemaManager(
+        database_executor=ClickHouseClient(config.clickhouse),
+        table_executor=ClickHouseClient(
+            config.clickhouse,
+            database=config.clickhouse.database,
+        ),
+        table_registry=clickhouse_table_registry,
+    )
+    clickhouse_schema_manager.bootstrap()
+    logging.info(
+        "clickhouse_schema_ready database=%s tables=%s",
+        clickhouse_table_registry.database,
+        ",".join(sorted(clickhouse_table_registry.tables)),
     )
     event_sink = LoggingEventSink(client_id=config.kafka_client_id)
     consumer = build_consumer(config)
