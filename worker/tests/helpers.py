@@ -14,18 +14,18 @@ def build_table_config(
     topic: str,
     primary_key_fields: tuple[str, ...],
     adapter: str = "debezium_postgres",
+    destination_columns: tuple[tuple[str, str, bool], ...] | None = None,
+    enabled: bool = True,
 ) -> TableConfig:
-    destination_columns = tuple(
-        TableDestinationColumnConfig(
-            name=field_name,
-            type="UInt64",
-            nullable=False,
+    resolved_destination_columns = destination_columns
+    if resolved_destination_columns is None:
+        resolved_destination_columns = tuple(
+            (field_name, "UInt64", False)
+            for field_name in primary_key_fields
         )
-        for field_name in primary_key_fields
-    )
 
     return TableConfig(
-        enabled=True,
+        enabled=enabled,
         source=TableSourceConfig(
             adapter=adapter,
             table=table,
@@ -37,7 +37,14 @@ def build_table_config(
         sync=TableSyncConfig(mode="realtime"),
         destination=TableDestinationConfig(
             table=table,
-            columns=destination_columns,
+            columns=tuple(
+                TableDestinationColumnConfig(
+                    name=name,
+                    type=column_type,
+                    nullable=nullable,
+                )
+                for name, column_type, nullable in resolved_destination_columns
+            ),
         ),
     )
 
