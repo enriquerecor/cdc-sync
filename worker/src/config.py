@@ -5,6 +5,20 @@ from table_config import TableConfig, load_table_registry
 
 VALID_AUTO_OFFSET_RESET = {"earliest", "latest"}
 DEFAULT_TABLE_CONFIG_PATH = "config/tables.json"
+DEFAULT_CLICKHOUSE_HOST = "clickhouse"
+DEFAULT_CLICKHOUSE_PORT = 9000
+DEFAULT_CLICKHOUSE_DATABASE = "cdc_sync_analytics"
+DEFAULT_CLICKHOUSE_USER = "cdc_sync"
+DEFAULT_CLICKHOUSE_PASSWORD = "cdc_sync"
+
+
+@dataclass(frozen=True)
+class ClickHouseConfig:
+    host: str
+    port: int
+    database: str
+    user: str
+    password: str
 
 
 @dataclass(frozen=True)
@@ -18,6 +32,7 @@ class WorkerConfig:
     table_config_path: str
     table_config_version: int
     tables: dict[str, TableConfig]
+    clickhouse: ClickHouseConfig
 
 
 def load_config() -> WorkerConfig:
@@ -28,6 +43,19 @@ def load_config() -> WorkerConfig:
     kafka_poll_timeout_ms = _read_positive_int_env("WORKER_KAFKA_POLL_TIMEOUT_MS")
     table_config_path = _read_optional_env(
         "WORKER_TABLE_CONFIG_PATH", DEFAULT_TABLE_CONFIG_PATH
+    )
+    clickhouse = ClickHouseConfig(
+        host=_read_optional_env("WORKER_CLICKHOUSE_HOST", DEFAULT_CLICKHOUSE_HOST),
+        port=_read_optional_positive_int_env(
+            "WORKER_CLICKHOUSE_PORT", DEFAULT_CLICKHOUSE_PORT
+        ),
+        database=_read_optional_env(
+            "WORKER_CLICKHOUSE_DB", DEFAULT_CLICKHOUSE_DATABASE
+        ),
+        user=_read_optional_env("WORKER_CLICKHOUSE_USER", DEFAULT_CLICKHOUSE_USER),
+        password=_read_optional_env(
+            "WORKER_CLICKHOUSE_PASSWORD", DEFAULT_CLICKHOUSE_PASSWORD
+        ),
     )
     table_registry = load_table_registry(table_config_path)
     kafka_topics = _build_kafka_topics(table_registry.tables)
@@ -47,6 +75,7 @@ def load_config() -> WorkerConfig:
         table_config_path=table_config_path,
         table_config_version=table_registry.version,
         tables=table_registry.tables,
+        clickhouse=clickhouse,
     )
 
 
@@ -70,7 +99,15 @@ def _read_optional_env(name: str, default: str) -> str:
 
 def _read_positive_int_env(name: str) -> int:
     raw_value = _read_required_env(name)
+    return _parse_positive_int(raw_value, name)
 
+
+def _read_optional_positive_int_env(name: str, default: int) -> int:
+    raw_value = _read_optional_env(name, str(default))
+    return _parse_positive_int(raw_value, name)
+
+
+def _parse_positive_int(raw_value: str, name: str) -> int:
     try:
         value = int(raw_value)
     except ValueError as exc:
