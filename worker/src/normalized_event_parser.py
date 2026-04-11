@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from adapters.change_event_adapter import ChangeEventAdapter
 from normalized_event import NormalizedEvent, Operation
@@ -6,14 +6,26 @@ from table_config import TableConfig
 
 
 @dataclass(frozen=True)
+class TopicRoute:
+    table_name: str
+    table_config: TableConfig
+    adapter: ChangeEventAdapter
+
+
+@dataclass(frozen=True)
 class NormalizedEventParser:
     adapters: dict[str, ChangeEventAdapter]
     tables: dict[str, TableConfig]
+    topic_routes: dict[str, TopicRoute] = field(init=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "topic_routes", self._build_topic_routes())
 
     def parse(
         self, topic: str, value: dict[str, object] | None
     ) -> NormalizedEvent | None:
-        adapter = self._get_adapter_for_topic(topic)
+        route = self._get_topic_route(topic)
+        adapter = route.adapter
 
         if adapter.is_tombstone(value):
             return None
@@ -22,12 +34,17 @@ class NormalizedEventParser:
             raise TypeError("El valor del evento debe ser un objeto JSON")
 
         table_name = adapter.extract_table_name(topic, value)
+        self._validate_table_name(route, table_name)
         operation = adapter.extract_operation(value)
         source_data = adapter.extract_data(value, operation)
 
         return NormalizedEvent(
-            table=table_name,
-            primary_key=self._extract_primary_key(table_name, source_data),
+            table=route.table_name,
+            primary_key=self._extract_primary_key(
+                route.table_name,
+                route.table_config,
+                source_data,
+            ),
             data=self._build_event_data(operation, source_data),
             version=adapter.extract_version(value),
             source_position=adapter.extract_source_position(value),
@@ -36,10 +53,11 @@ class NormalizedEventParser:
         )
 
     def _extract_primary_key(
-        self, table_name: str, data: dict[str, object]
+        self,
+        table_name: str,
+        table_config: TableConfig,
+        data: dict[str, object],
     ) -> dict[str, object]:
-        table_config = self._get_table_config(table_name)
-
         primary_key: dict[str, object] = {}
         for field_name in table_config.primary_key_fields:
             if field_name not in data:
@@ -52,28 +70,55 @@ class NormalizedEventParser:
 
         return primary_key
 
-    def _get_table_config(self, table_name: str) -> TableConfig:
-        try:
-            return self.tables[table_name]
-        except KeyError as exc:
-            raise ValueError(f"La tabla '{table_name}' no existe en la configuracion") from exc
+    def _build_topic_routes(self) -> dict[str, TopicRoute]:
+        topic_routes: dict[str, TopicRoute] = {}
 
-    def _get_adapter_for_topic(self, topic: str) -> ChangeEventAdapter:
-        table_config = self._get_table_config_by_topic(topic)
+        for table_name, table_config in self.tables.items():
+            topic = table_config.source.topic
+            adapter = self._get_adapter_for_table(table_name, table_config)
 
+            if topic in topic_routes:
+                conflicting_table_name = topic_routes[topic].table_name
+                raise ValueError(
+                    f"El topic '{topic}' esta duplicado en la configuracion para "
+                    f"las tablas '{conflicting_table_name}' y '{table_name}'"
+                )
+
+            topic_routes[topic] = TopicRoute(
+                table_name=table_name,
+                table_config=table_config,
+                adapter=adapter,
+            )
+
+        return topic_routes
+
+    def _get_adapter_for_table(
+        self,
+        table_name: str,
+        table_config: TableConfig,
+    ) -> ChangeEventAdapter:
         try:
             return self.adapters[table_config.source.adapter]
         except KeyError as exc:
             raise ValueError(
-                f"El adapter '{table_config.source.adapter}' no existe en la configuracion del worker"
+                f"El adapter '{table_config.source.adapter}' no existe en la configuracion del worker "
+                f"para la tabla '{table_name}'"
             ) from exc
 
-    def _get_table_config_by_topic(self, topic: str) -> TableConfig:
-        for table_config in self.tables.values():
-            if table_config.source.topic == topic:
-                return table_config
+    def _get_topic_route(self, topic: str) -> TopicRoute:
+        try:
+            return self.topic_routes[topic]
+        except KeyError as exc:
+            raise ValueError(f"El topic '{topic}' no existe en la configuracion") from exc
 
-        raise ValueError(f"El topic '{topic}' no existe en la configuracion")
+    def _validate_table_name(self, route: TopicRoute, table_name: str) -> None:
+        if table_name == route.table_name:
+            return
+
+        raise ValueError(
+            f"El evento del topic '{route.table_config.source.topic}' se resolvio para la tabla "
+            f"'{table_name}', pero la configuracion del worker espera '{route.table_name}'"
+        )
 
     def _build_event_data(
         self, operation: Operation, source_data: dict[str, object]

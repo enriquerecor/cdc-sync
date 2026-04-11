@@ -4,12 +4,15 @@ from table_config import TableConfig, TableSourceConfig, TableSyncConfig
 
 
 def build_table_config(
-    table: str, topic: str, primary_key_fields: tuple[str, ...]
+    table: str,
+    topic: str,
+    primary_key_fields: tuple[str, ...],
+    adapter: str = "debezium_postgres",
 ) -> TableConfig:
     return TableConfig(
         enabled=True,
         source=TableSourceConfig(
-            adapter="debezium_postgres",
+            adapter=adapter,
             table=table,
             topic=topic,
             connection="postgres_local",
