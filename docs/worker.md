@@ -25,6 +25,14 @@ Contrato minimo actual:
 - `version`
 - `tables`
 
+Configuracion global de destino actual:
+
+- `WORKER_CLICKHOUSE_HOST`
+- `WORKER_CLICKHOUSE_PORT`
+- `WORKER_CLICKHOUSE_DB`
+- `WORKER_CLICKHOUSE_USER`
+- `WORKER_CLICKHOUSE_PASSWORD`
+
 Contrato minimo actual por tabla:
 
 - `enabled`
@@ -35,6 +43,16 @@ Contrato minimo actual por tabla:
 - `source.topic`
 - `pk`
 - `sync.mode`
+- `destination.table`
+- `destination.columns[].name`
+- `destination.columns[].type`
+- `destination.columns[].nullable`
+
+Restricciones de `destination.columns`:
+
+- debe incluir todas las columnas de PK declaradas en `pk`
+- las columnas de PK no pueden ser `nullable`
+- no se pueden declarar las columnas tecnicas `version` y `deleted`; las anadira el sistema
 
 Arrancar el servicio:
 
