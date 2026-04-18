@@ -30,9 +30,29 @@ Configuracion global de destino actual:
 
 - `WORKER_CLICKHOUSE_HOST`
 - `WORKER_CLICKHOUSE_PORT`
+- `WORKER_CLICKHOUSE_SECURE`
 - `WORKER_CLICKHOUSE_DB`
 - `WORKER_CLICKHOUSE_USER`
 - `WORKER_CLICKHOUSE_PASSWORD`
+
+Valores recomendados:
+
+- entorno local: `WORKER_CLICKHOUSE_PORT=9000` y `WORKER_CLICKHOUSE_SECURE=false`
+- ClickHouse Cloud: `WORKER_CLICKHOUSE_PORT=9440` y `WORKER_CLICKHOUSE_SECURE=true`
+
+Ejemplo mínimo para ClickHouse Cloud:
+
+```bash
+WORKER_CLICKHOUSE_HOST=<cluster>.clickhouse.cloud
+WORKER_CLICKHOUSE_PORT=9440
+WORKER_CLICKHOUSE_SECURE=true
+WORKER_CLICKHOUSE_DB=cdc_sync_analytics
+WORKER_CLICKHOUSE_USER=<usuario>
+WORKER_CLICKHOUSE_PASSWORD=<password>
+```
+
+Si se detecta una combinacion sospechosa entre puerto y TLS, el worker emitira un `warning`
+para facilitar la deteccion de configuraciones incoherentes sin bloquear despliegues custom.
 
 Contrato minimo actual por tabla:
 

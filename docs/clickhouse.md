@@ -17,6 +17,12 @@ Puertos por defecto:
 - HTTP: `localhost:8123`
 - protocolo nativo: `localhost:9000`
 
+Para ClickHouse Cloud, el puerto nativo seguro habitual es `9440` y requiere TLS.
+En el worker, se configura de forma explicita con:
+
+- `WORKER_CLICKHOUSE_PORT=9440`
+- `WORKER_CLICKHOUSE_SECURE=true`
+
 Base usada por el worker:
 
 - `cdc_sync_analytics`
