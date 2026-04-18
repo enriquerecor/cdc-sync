@@ -220,6 +220,8 @@ prompts/
 .ai-history/
 .conversations/
 .embeddings/
+**/AGENTS.md
+**/SKILLS.md
 
 # Logs de herramientas IA
 *.llm.log
