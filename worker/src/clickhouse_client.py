@@ -33,6 +33,7 @@ class ClickHouseClient(ClickHouseCommandExecutor, ClickHouseRowWriter):
             client_kwargs = {
                 "host": self.config.host,
                 "port": self.config.port,
+                "secure": self.config.secure,
                 "user": self.config.user,
                 "password": self.config.password,
             }

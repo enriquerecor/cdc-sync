@@ -1,12 +1,18 @@
 from dataclasses import dataclass
 from os import getenv
+import warnings
 
 from table_config import TableConfig, load_table_registry
 
 VALID_AUTO_OFFSET_RESET = {"earliest", "latest"}
+VALID_TRUE_ENV_VALUES = {"1", "true", "yes", "on"}
+VALID_FALSE_ENV_VALUES = {"0", "false", "no", "off"}
+COMMON_INSECURE_CLICKHOUSE_PORT = 9000
+COMMON_SECURE_CLICKHOUSE_PORTS = frozenset({8443, 9440})
 DEFAULT_TABLE_CONFIG_PATH = "config/tables.json"
 DEFAULT_CLICKHOUSE_HOST = "clickhouse"
 DEFAULT_CLICKHOUSE_PORT = 9000
+DEFAULT_CLICKHOUSE_SECURE = False
 DEFAULT_CLICKHOUSE_DATABASE = "cdc_sync_analytics"
 DEFAULT_CLICKHOUSE_USER = "cdc_sync"
 DEFAULT_CLICKHOUSE_PASSWORD = "cdc_sync"
@@ -16,6 +22,7 @@ DEFAULT_CLICKHOUSE_PASSWORD = "cdc_sync"
 class ClickHouseConfig:
     host: str
     port: int
+    secure: bool
     database: str
     user: str
     password: str
@@ -49,6 +56,10 @@ def load_config() -> WorkerConfig:
         port=_read_optional_positive_int_env(
             "WORKER_CLICKHOUSE_PORT", DEFAULT_CLICKHOUSE_PORT
         ),
+        secure=_read_optional_bool_env(
+            "WORKER_CLICKHOUSE_SECURE",
+            default=DEFAULT_CLICKHOUSE_SECURE,
+        ),
         database=_read_optional_env(
             "WORKER_CLICKHOUSE_DB", DEFAULT_CLICKHOUSE_DATABASE
         ),
@@ -64,6 +75,8 @@ def load_config() -> WorkerConfig:
         raise ValueError(
             "WORKER_KAFKA_AUTO_OFFSET_RESET debe ser 'earliest' o 'latest'"
         )
+
+    _warn_if_clickhouse_security_port_combo_is_suspicious(clickhouse)
 
     return WorkerConfig(
         kafka_bootstrap_servers=kafka_bootstrap_servers,
@@ -107,6 +120,28 @@ def _read_optional_positive_int_env(name: str, default: int) -> int:
     return _parse_positive_int(raw_value, name)
 
 
+def _read_optional_bool_env(name: str, default: bool) -> bool:
+    raw_value = getenv(name)
+
+    if raw_value is None:
+        return default
+
+    normalized_value = raw_value.strip().lower()
+
+    if not normalized_value:
+        raise ValueError(f"La variable {name} no puede estar vacia")
+
+    if normalized_value in VALID_TRUE_ENV_VALUES:
+        return True
+
+    if normalized_value in VALID_FALSE_ENV_VALUES:
+        return False
+
+    raise ValueError(
+        f"La variable {name} debe ser un booleano valido ({', '.join(sorted(VALID_TRUE_ENV_VALUES | VALID_FALSE_ENV_VALUES))})"
+    )
+
+
 def _parse_positive_int(raw_value: str, name: str) -> int:
     try:
         value = int(raw_value)
@@ -117,6 +152,29 @@ def _parse_positive_int(raw_value: str, name: str) -> int:
         raise ValueError(f"La variable {name} debe ser mayor que 0")
 
     return value
+
+
+def _warn_if_clickhouse_security_port_combo_is_suspicious(
+    clickhouse: ClickHouseConfig,
+) -> None:
+    if clickhouse.secure and clickhouse.port == COMMON_INSECURE_CLICKHOUSE_PORT:
+        warnings.warn(
+            "WORKER_CLICKHOUSE_SECURE=true con WORKER_CLICKHOUSE_PORT=9000 es una combinacion no habitual. "
+            "Para el entorno local usa 9000/false y para ClickHouse Cloud 9440/true.",
+            UserWarning,
+            stacklevel=2,
+        )
+        return
+
+    if clickhouse.secure or clickhouse.port not in COMMON_SECURE_CLICKHOUSE_PORTS:
+        return
+
+    warnings.warn(
+        f"WORKER_CLICKHOUSE_PORT={clickhouse.port} suele requerir WORKER_CLICKHOUSE_SECURE=true. "
+        "Revisa la configuracion si el destino es ClickHouse Cloud.",
+        UserWarning,
+        stacklevel=2,
+    )
 
 
 def _build_kafka_topics(tables: dict[str, TableConfig]) -> list[str]:
