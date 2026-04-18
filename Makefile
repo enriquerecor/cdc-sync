@@ -8,18 +8,20 @@ WORKER_TEST_VENV_PYTHON := $(WORKER_TEST_VENV_DIR)/bin/python
 WORKER_TEST_VENV_STAMP := $(WORKER_TEST_VENV_DIR)/.worker-test-installed
 POSTGRES_CONNECTOR_TEMPLATE := infrastructure/debezium/connectors/postgresql/source.config.template.json
 POSTGRES_CONNECTOR_OUTPUT := infrastructure/debezium/connectors/generated/postgresql-source.local.json
+E2E_VALIDATE_SCRIPT := infrastructure/e2e/validate-local.sh
 CONNECT_RETRY_ATTEMPTS ?= 15
 CONNECT_RETRY_DELAY_SECONDS ?= 2
 
 .DEFAULT_GOAL := help
 
-.PHONY: help env-init worker-test-deps worker-test debezium-postgres-render debezium-postgres-apply debezium-postgres-status
+.PHONY: help env-init worker-test-deps worker-test e2e-validate debezium-postgres-render debezium-postgres-apply debezium-postgres-status
 
 help:
 	@echo "Objetivos disponibles:"
 	@echo "  make env-init"
 	@echo "  make worker-test-deps"
 	@echo "  make worker-test"
+	@echo "  make e2e-validate"
 	@echo "  make debezium-postgres-render"
 	@echo "  make debezium-postgres-apply"
 	@echo "  make debezium-postgres-status"
@@ -44,6 +46,9 @@ worker-test-deps: $(WORKER_TEST_VENV_STAMP)
 worker-test: $(WORKER_TEST_VENV_STAMP)
 	@PYTHONPATH="worker/src" \
 		"$(WORKER_TEST_VENV_PYTHON)" -m pytest worker/tests -v
+
+e2e-validate:
+	@"$(E2E_VALIDATE_SCRIPT)"
 
 $(WORKER_TEST_VENV_PYTHON):
 	@python3 -m venv "$(WORKER_TEST_VENV_DIR)"
