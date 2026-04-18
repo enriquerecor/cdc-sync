@@ -63,6 +63,7 @@ def test_main_wires_clickhouse_event_sink(monkeypatch) -> None:
         clickhouse=ClickHouseConfig(
             host="clickhouse",
             port=9000,
+            secure=False,
             database="cdc_sync_analytics",
             user="cdc_sync",
             password="cdc_sync",

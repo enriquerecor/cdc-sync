@@ -20,6 +20,7 @@ def test_bootstrap_creates_database_and_tables() -> None:
         ClickHouseConfig(
             host="clickhouse",
             port=9000,
+            secure=False,
             database="cdc_sync_analytics",
             user="cdc_sync",
             password="cdc_sync",

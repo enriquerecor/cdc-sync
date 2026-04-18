@@ -11,6 +11,7 @@ def test_build_table_registry_adds_technical_columns() -> None:
         ClickHouseConfig(
             host="clickhouse",
             port=9000,
+            secure=False,
             database="cdc_sync_analytics",
             user="cdc_sync",
             password="cdc_sync",
@@ -50,6 +51,7 @@ def test_create_table_query_uses_replacing_merge_tree_and_order_by_pk() -> None:
         ClickHouseConfig(
             host="clickhouse",
             port=9000,
+            secure=False,
             database="cdc_sync_analytics",
             user="cdc_sync",
             password="cdc_sync",
@@ -83,6 +85,7 @@ def test_build_table_registry_skips_disabled_tables() -> None:
         ClickHouseConfig(
             host="clickhouse",
             port=9000,
+            secure=False,
             database="cdc_sync_analytics",
             user="cdc_sync",
             password="cdc_sync",
@@ -114,6 +117,7 @@ def test_build_table_registry_fails_when_non_pk_column_is_not_nullable() -> None
             ClickHouseConfig(
                 host="clickhouse",
                 port=9000,
+                secure=False,
                 database="cdc_sync_analytics",
                 user="cdc_sync",
                 password="cdc_sync",
