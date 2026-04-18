@@ -108,29 +108,66 @@ def test_build_table_registry_skips_disabled_tables() -> None:
     assert tuple(registry.tables) == ("customers",)
 
 
-def test_build_table_registry_fails_when_non_pk_column_is_not_nullable() -> None:
-    with pytest.raises(
-        ValueError,
-        match="La tabla 'customers' define la columna no PK 'email' como no nullable",
-    ):
-        build_clickhouse_table_registry(
-            ClickHouseConfig(
-                host="clickhouse",
-                port=9000,
-                secure=False,
-                database="cdc_sync_analytics",
-                user="cdc_sync",
-                password="cdc_sync",
-            ),
-            tables={
-                "customers": build_table_config(
-                    table="customers",
-                    topic="cdc_sync.public.customers",
-                    primary_key_fields=("id",),
-                    destination_columns=(
-                        ("id", "UInt64", False),
-                        ("email", "String", False),
-                    ),
-                )
-            },
-        )
+def test_build_table_registry_allows_non_pk_column_not_nullable() -> None:
+    registry = build_clickhouse_table_registry(
+        ClickHouseConfig(
+            host="clickhouse",
+            port=9000,
+            secure=False,
+            database="cdc_sync_analytics",
+            user="cdc_sync",
+            password="cdc_sync",
+        ),
+        tables={
+            "customers": build_table_config(
+                table="customers",
+                topic="cdc_sync.public.customers",
+                primary_key_fields=("id",),
+                destination_columns=(
+                    ("id", "UInt64", False),
+                    ("email", "String", False),
+                ),
+            )
+        },
+    )
+
+    query = registry.get("customers").create_table_query
+
+    assert "`email` String" in query
+
+
+def test_delete_insert_query_uses_only_pk_and_technical_columns() -> None:
+    registry = build_clickhouse_table_registry(
+        ClickHouseConfig(
+            host="clickhouse",
+            port=9000,
+            secure=False,
+            database="cdc_sync_analytics",
+            user="cdc_sync",
+            password="cdc_sync",
+        ),
+        tables={
+            "orders": build_table_config(
+                table="orders",
+                topic="cdc_sync.public.orders",
+                primary_key_fields=("id",),
+                destination_columns=(
+                    ("id", "UInt64", False),
+                    ("status", "String", False),
+                    ("total_amount", "Decimal(10, 2)", False),
+                ),
+            )
+        },
+    )
+
+    table = registry.get("orders")
+
+    assert tuple(column.name for column in table.delete_insert_columns) == (
+        "id",
+        "version",
+        "deleted",
+    )
+    assert (
+        table.delete_insert_query
+        == "INSERT INTO `cdc_sync_analytics`.`orders` (`id`, `version`, `deleted`) VALUES"
+    )

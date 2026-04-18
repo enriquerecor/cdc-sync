@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 
+import pytest
+
 from clickhouse_event_sink import ClickHouseEventSink
 from clickhouse_table_registry import build_clickhouse_table_registry
 from config import ClickHouseConfig
@@ -107,13 +109,11 @@ def test_persist_delete_writes_pk_and_nulls_for_non_pk_columns() -> None:
 
     sink.persist(event)
 
-    _, rows = sink.row_writer.calls[0]
+    query, rows = sink.row_writer.calls[0]
+    assert query == "INSERT INTO `cdc_sync_analytics`.`orders` (`id`, `version`, `deleted`) VALUES"
     assert rows == [
         {
             "id": 9,
-            "status": None,
-            "total_amount": None,
-            "created_at": None,
             "version": 202,
             "deleted": 1,
         }
@@ -193,6 +193,35 @@ def test_persist_writes_normalized_decimal_values() -> None:
             "deleted": 0,
         }
     ]
+
+
+def test_persist_fails_when_non_nullable_column_is_null() -> None:
+    sink = _build_sink(
+        build_table_config(
+            table="customers",
+            topic="cdc_sync.public.customers",
+            primary_key_fields=("id",),
+            destination_columns=(
+                ("id", "UInt64", False),
+                ("email", "String", False),
+            ),
+        )
+    )
+    event = NormalizedEvent(
+        table="customers",
+        primary_key={"id": 7},
+        data={"id": 7, "email": None},
+        version=606,
+        source_position={"lsn": 606},
+        deleted=False,
+        operation=Operation.UPDATE,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="incluye null en la columna no nullable 'email'",
+    ):
+        sink.persist(event)
 
 
 def _build_sink(table_config) -> ClickHouseEventSink:

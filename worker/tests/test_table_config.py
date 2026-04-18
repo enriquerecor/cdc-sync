@@ -25,9 +25,10 @@ def test_load_table_registry(tmp_path: Path) -> None:
                     "sync": {"mode": "realtime"},
                     "destination": {
                         "table": "customers",
+                        "default_nullable": True,
                         "columns": [
                             {"name": "id", "type": "UInt64", "nullable": False},
-                            {"name": "email", "type": "String", "nullable": True},
+                            {"name": "email", "type": "String"},
                         ],
                     },
                 }
@@ -43,6 +44,43 @@ def test_load_table_registry(tmp_path: Path) -> None:
     assert registry.tables["customers"].primary_key_fields == ("id",)
     assert registry.tables["customers"].destination.table == "customers"
     assert registry.tables["customers"].destination.columns[1].name == "email"
+    assert registry.tables["customers"].destination.columns[1].nullable is True
+
+
+def test_load_table_registry_uses_false_when_nullable_is_not_defined(
+    tmp_path: Path,
+) -> None:
+    config_path = _write_temp_config(
+        tmp_path,
+        {
+            "version": 2,
+            "tables": {
+                "customers": {
+                    "enabled": True,
+                    "source": {
+                        "adapter": "debezium_postgres",
+                        "connection": "postgres_local",
+                        "schema": "public",
+                        "table": "customers",
+                        "topic": "cdc_sync.public.customers",
+                    },
+                    "pk": ["id"],
+                    "sync": {"mode": "realtime"},
+                    "destination": {
+                        "table": "customers",
+                        "columns": [
+                            {"name": "id", "type": "UInt64", "nullable": False},
+                            {"name": "email", "type": "String"},
+                        ],
+                    },
+                }
+            },
+        },
+    )
+
+    registry = load_table_registry(str(config_path))
+
+    assert registry.tables["customers"].destination.columns[1].nullable is False
 
 
 def test_load_table_registry_fails_with_invalid_structure(
@@ -127,6 +165,44 @@ def test_load_table_registry_fails_when_pk_is_nullable_in_destination(
                         "table": "customers",
                         "columns": [
                             {"name": "id", "type": "UInt64", "nullable": True}
+                        ],
+                    },
+                }
+            },
+        },
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="La tabla 'customers'.destination.columns marca la PK 'id' como nullable",
+    ):
+        load_table_registry(str(config_path))
+
+
+def test_load_table_registry_fails_when_pk_inherits_nullable_true(
+    tmp_path: Path,
+) -> None:
+    config_path = _write_temp_config(
+        tmp_path,
+        {
+            "version": 2,
+            "tables": {
+                "customers": {
+                    "enabled": True,
+                    "source": {
+                        "adapter": "debezium_postgres",
+                        "connection": "postgres_local",
+                        "schema": "public",
+                        "table": "customers",
+                        "topic": "cdc_sync.public.customers",
+                    },
+                    "pk": ["id"],
+                    "sync": {"mode": "realtime"},
+                    "destination": {
+                        "table": "customers",
+                        "default_nullable": True,
+                        "columns": [
+                            {"name": "id", "type": "UInt64"},
                         ],
                     },
                 }

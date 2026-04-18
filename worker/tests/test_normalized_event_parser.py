@@ -295,6 +295,37 @@ def test_parse_fails_when_primary_key_field_is_missing(
         )
 
 
+def test_parse_fails_when_destination_column_is_missing_in_upsert() -> None:
+    parser = NormalizedEventParser(
+        adapters=build_change_event_adapters(),
+        tables={
+            "customers": build_table_config(
+                table="customers",
+                topic="cdc_sync.public.customers",
+                primary_key_fields=("id",),
+                destination_columns=(
+                    ("id", "UInt64", False),
+                    ("email", "String", True),
+                ),
+            )
+        },
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="no incluye la columna configurada 'email'",
+    ):
+        parser.parse(
+            "cdc_sync.public.customers",
+            build_debezium_event(
+                operation="u",
+                table="customers",
+                lsn=607,
+                after={"id": 7},
+            ),
+        )
+
+
 def test_parse_fails_when_lsn_is_missing(parser: NormalizedEventParser) -> None:
     with pytest.raises(
         ValueError,
@@ -309,6 +340,38 @@ def test_parse_fails_when_lsn_is_missing(parser: NormalizedEventParser) -> None:
                 after={"id": 7, "email": "missing-lsn@example.com"},
             ),
         )
+
+
+def test_parse_delete_does_not_require_non_pk_columns() -> None:
+    parser = NormalizedEventParser(
+        adapters=build_change_event_adapters(),
+        tables={
+            "orders": build_table_config(
+                table="orders",
+                topic="cdc_sync.public.orders",
+                primary_key_fields=("id",),
+                destination_columns=(
+                    ("id", "UInt64", False),
+                    ("status", "String", False),
+                ),
+            )
+        },
+    )
+
+    event = parser.parse(
+        "cdc_sync.public.orders",
+        build_debezium_event(
+            operation="d",
+            table="orders",
+            lsn=808,
+            before={"id": 8},
+        ),
+    )
+
+    assert event is not None
+    assert event.primary_key == {"id": 8}
+    assert event.data == {}
+    assert event.deleted is True
 
 
 def test_parser_fails_at_startup_when_adapter_is_not_registered() -> None:
