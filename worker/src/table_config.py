@@ -142,6 +142,10 @@ def _build_destination_config(
     table_name: str,
     destination_config: dict[object, object],
 ) -> TableDestinationConfig:
+    default_nullable = _expect_optional_bool(
+        destination_config.get("default_nullable"),
+        f"La tabla '{table_name}'.destination.default_nullable",
+    )
     raw_columns = _expect_list(
         destination_config["columns"],
         f"La tabla '{table_name}'.destination.columns",
@@ -153,7 +157,12 @@ def _build_destination_config(
             f"La tabla '{table_name}'.destination.table",
         ),
         columns=tuple(
-            _build_destination_column_config(table_name, index, raw_column)
+            _build_destination_column_config(
+                table_name,
+                index,
+                raw_column,
+                default_nullable=default_nullable,
+            )
             for index, raw_column in enumerate(raw_columns)
         ),
     )
@@ -163,14 +172,23 @@ def _build_destination_column_config(
     table_name: str,
     index: int,
     raw_column: object,
+    *,
+    default_nullable: bool | None,
 ) -> TableDestinationColumnConfig:
     label = f"La tabla '{table_name}'.destination.columns[{index}]"
     column_config = _expect_dict(raw_column, label)
+    column_nullable = _expect_optional_bool(
+        column_config.get("nullable"),
+        f"{label}.nullable",
+    )
 
     return TableDestinationColumnConfig(
         name=_expect_str(column_config["name"], f"{label}.name"),
         type=_expect_str(column_config["type"], f"{label}.type"),
-        nullable=_expect_bool(column_config["nullable"], f"{label}.nullable"),
+        nullable=_resolve_destination_column_nullable(
+            column_nullable=column_nullable,
+            default_nullable=default_nullable,
+        ),
     )
 
 
@@ -267,8 +285,29 @@ def _expect_bool(value: object, label: str) -> bool:
     return value
 
 
+def _expect_optional_bool(value: object, label: str) -> bool | None:
+    if value is None:
+        return None
+
+    return _expect_bool(value, label)
+
+
 def _expect_int(value: object, label: str) -> int:
     if not isinstance(value, int) or isinstance(value, bool):
         raise TypeError(f"{label} debe ser un entero")
 
     return value
+
+
+def _resolve_destination_column_nullable(
+    *,
+    column_nullable: bool | None,
+    default_nullable: bool | None,
+) -> bool:
+    if column_nullable is not None:
+        return column_nullable
+
+    if default_nullable is not None:
+        return default_nullable
+
+    return False
