@@ -65,15 +65,18 @@ Contrato minimo actual por tabla:
 - `pk`
 - `sync.mode`
 - `destination.table`
+- `destination.default_nullable` (opcional)
 - `destination.columns[].name`
 - `destination.columns[].type`
-- `destination.columns[].nullable`
+- `destination.columns[].nullable` (opcional)
 
 Restricciones de `destination.columns`:
 
 - debe incluir todas las columnas de PK declaradas en `pk`
 - las columnas de PK no pueden ser `nullable`
 - no se pueden declarar las columnas tecnicas `version` y `deleted`; las anadira el sistema
+- si una columna no declara `nullable`, heredara `destination.default_nullable`
+- si tampoco existe `destination.default_nullable`, la nulabilidad efectiva sera `false`
 
 Arrancar el servicio:
 
@@ -110,6 +113,8 @@ Semantica actual:
 - `source_position` conserva la metadata de posicion original del origen para trazabilidad y futuros adapters
 - para Debezium PostgreSQL, `version` se resuelve de forma estricta desde `payload.source.lsn`
 - para Debezium PostgreSQL, `source_position` se expone como `{"lsn": <valor>}`
+- `missing` y `null` no son equivalentes: un upsert debe incluir todas las columnas configuradas en destino
+- los deletes logicos se materializan con PK + columnas tecnicas; el flag `deleted` marca el borrado
 
 ## Validaciones
 

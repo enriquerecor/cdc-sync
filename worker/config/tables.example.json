@@ -16,10 +16,11 @@
       },
       "destination": {
         "table": "customers",
+        "default_nullable": true,
         "columns": [
           { "name": "id", "type": "UInt64", "nullable": false },
-          { "name": "email", "type": "String", "nullable": true },
-          { "name": "full_name", "type": "String", "nullable": true },
+          { "name": "email", "type": "String" },
+          { "name": "full_name", "type": "String" },
           { "name": "created_at", "type": "DateTime64(3, 'UTC')", "nullable": true }
         ]
       }
@@ -39,13 +40,14 @@
       },
       "destination": {
         "table": "orders",
+        "default_nullable": true,
         "columns": [
           { "name": "id", "type": "UInt64", "nullable": false },
-          { "name": "customer_id", "type": "UInt64", "nullable": true },
-          { "name": "order_number", "type": "String", "nullable": true },
-          { "name": "total_amount", "type": "Decimal(10, 2)", "nullable": true },
-          { "name": "status", "type": "String", "nullable": true },
-          { "name": "created_at", "type": "DateTime64(3, 'UTC')", "nullable": true }
+          { "name": "customer_id", "type": "UInt64" },
+          { "name": "order_number", "type": "String" },
+          { "name": "total_amount", "type": "Decimal(10, 2)" },
+          { "name": "status", "type": "String" },
+          { "name": "created_at", "type": "DateTime64(3, 'UTC')" }
         ]
       }
     }
