@@ -115,6 +115,7 @@ Semantica actual:
 - para Debezium PostgreSQL, `source_position` se expone como `{"lsn": <valor>}`
 - `missing` y `null` no son equivalentes: un upsert debe incluir todas las columnas configuradas en destino
 - los deletes logicos se materializan con PK + columnas tecnicas; el flag `deleted` marca el borrado
+- cuando una columna no PK es `nullable=false`, ClickHouse materializa su valor por defecto en el delete logico porque esa columna no se inserta en la fila de borrado
 
 ## Validaciones
 
@@ -152,6 +153,17 @@ make worker-test
 ```
 
 ## Validación de consumo
+
+La validación reproducible recomendada del flujo completo está en:
+
+```bash
+make e2e-validate
+```
+
+Este comando levanta el stack, aplica el conector y comprueba automáticamente el comportamiento e2e sobre
+`customers` y `orders`.
+
+## Diagnóstico manual del worker
 
 Registrar el conector si el stack se ha levantado desde cero:
 

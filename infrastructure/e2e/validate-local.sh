@@ -5,12 +5,16 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ENV_FILE="$ROOT_DIR/.env"
 WORKER_TABLE_CONFIG_FILE="$ROOT_DIR/worker/config/tables.json"
+E2E_TABLE_CONFIG_PATH="config/tables.e2e.json"
+E2E_TABLE_CONFIG_FILE="$ROOT_DIR/worker/config/tables.e2e.json"
+E2E_CLICKHOUSE_DB_PREFIX="cdc_sync_analytics_e2e"
 CONNECTOR_CONFIG_FILE="$ROOT_DIR/infrastructure/debezium/connectors/generated/postgresql-source.local.json"
 POLL_INTERVAL_SECONDS="${E2E_POLL_INTERVAL_SECONDS:-2}"
 PHASE_TIMEOUT_SECONDS="${E2E_TIMEOUT_SECONDS:-120}"
 CONNECT_RETRY_ATTEMPTS="${CONNECT_RETRY_ATTEMPTS:-15}"
 CONNECT_RETRY_DELAY_SECONDS="${CONNECT_RETRY_DELAY_SECONDS:-2}"
 E2E_VERBOSE="${E2E_VERBOSE:-0}"
+GENERATED_E2E_TABLE_CONFIG=0
 
 log() {
   printf '[e2e] %s\n' "$*"
@@ -40,6 +44,79 @@ fail() {
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
     fail "Falta el comando requerido '$1'"
+  fi
+}
+
+ensure_e2e_table_config() {
+  if [[ -f "$E2E_TABLE_CONFIG_FILE" ]]; then
+    return 0
+  fi
+
+  log "Generando configuracion e2e del worker en $E2E_TABLE_CONFIG_FILE"
+  mkdir -p "$(dirname "$E2E_TABLE_CONFIG_FILE")"
+  cat >"$E2E_TABLE_CONFIG_FILE" <<'EOF'
+{
+  "version": 2,
+  "tables": {
+    "customers": {
+      "enabled": true,
+      "source": {
+        "adapter": "debezium_postgres",
+        "connection": "postgres_local",
+        "schema": "public",
+        "table": "customers",
+        "topic": "cdc_sync.public.customers"
+      },
+      "pk": ["id"],
+      "sync": {
+        "mode": "realtime"
+      },
+      "destination": {
+        "table": "customers",
+        "default_nullable": true,
+        "columns": [
+          { "name": "id", "type": "UInt64", "nullable": false },
+          { "name": "email", "type": "String" },
+          { "name": "full_name", "type": "String" },
+          { "name": "created_at", "type": "DateTime64(3, 'UTC')", "nullable": true }
+        ]
+      }
+    },
+    "orders": {
+      "enabled": true,
+      "source": {
+        "adapter": "debezium_postgres",
+        "connection": "postgres_local",
+        "schema": "public",
+        "table": "orders",
+        "topic": "cdc_sync.public.orders"
+      },
+      "pk": ["id"],
+      "sync": {
+        "mode": "realtime"
+      },
+      "destination": {
+        "table": "orders",
+        "default_nullable": true,
+        "columns": [
+          { "name": "id", "type": "UInt64", "nullable": false },
+          { "name": "customer_id", "type": "UInt64" },
+          { "name": "order_number", "type": "String" },
+          { "name": "total_amount", "type": "Decimal(10, 2)" },
+          { "name": "status", "type": "String", "nullable": false },
+          { "name": "created_at", "type": "DateTime64(3, 'UTC')" }
+        ]
+      }
+    }
+  }
+}
+EOF
+  GENERATED_E2E_TABLE_CONFIG=1
+}
+
+cleanup_generated_e2e_table_config() {
+  if (( GENERATED_E2E_TABLE_CONFIG == 1 )) && [[ -f "$E2E_TABLE_CONFIG_FILE" ]]; then
+    rm -f "$E2E_TABLE_CONFIG_FILE"
   fi
 }
 
@@ -457,6 +534,8 @@ log_compose_services() {
 }
 
 prepare_local_environment() {
+  ensure_e2e_table_config
+
   if [[ -f "$ENV_FILE" && -f "$WORKER_TABLE_CONFIG_FILE" ]]; then
     return 0
   fi
@@ -479,12 +558,15 @@ load_environment() {
   POSTGRES_USER="${POSTGRES_USER:-cdc_sync}"
   CONNECT_PORT="${CONNECT_PORT:-8083}"
   DEBEZIUM_POSTGRES_CONNECTOR_NAME="${DEBEZIUM_POSTGRES_CONNECTOR_NAME:-postgres-cdc-source}"
+  export WORKER_TABLE_CONFIG_PATH="$E2E_TABLE_CONFIG_PATH"
   WORKER_CLICKHOUSE_DB="${WORKER_CLICKHOUSE_DB:-cdc_sync_analytics}"
   CLICKHOUSE_USER="${CLICKHOUSE_USER:-cdc_sync}"
   CLICKHOUSE_PASSWORD="${CLICKHOUSE_PASSWORD:-cdc_sync}"
 }
 
 main() {
+  trap cleanup_generated_e2e_table_config EXIT
+
   require_command docker
   require_command curl
   require_command python3
@@ -500,8 +582,11 @@ main() {
   local order_number order_status_initial order_status_updated
   local customer_id order_id customer_insert_version customer_update_version
   local order_insert_version order_update_version
+  local e2e_clickhouse_db
 
   run_id="$(date +%Y%m%d%H%M%S)-$$"
+  e2e_clickhouse_db="${E2E_CLICKHOUSE_DB_PREFIX}_${run_id//-/_}"
+  export WORKER_CLICKHOUSE_DB="$e2e_clickhouse_db"
   customer_email="e2e-${run_id}@example.com"
   customer_name_initial="E2E Customer ${run_id}"
   customer_name_updated="E2E Customer ${run_id} Updated"
@@ -512,6 +597,8 @@ main() {
   log_json_pairs \
     "Escenario e2e generado" \
     "run_id" "$run_id" \
+    "worker_table_config_path" "$WORKER_TABLE_CONFIG_PATH" \
+    "clickhouse_database" "$WORKER_CLICKHOUSE_DB" \
     "customer_email" "$customer_email" \
     "customer_name_initial" "$customer_name_initial" \
     "customer_name_updated" "$customer_name_updated" \
@@ -647,8 +734,8 @@ main() {
     "SELECT id, customer_id, order_number, total_amount, status, created_at, deleted FROM ${WORKER_CLICKHOUSE_DB}.orders FINAL WHERE id = ${order_id} FORMAT JSON"
   wait_for_clickhouse_result \
     "delete logico" \
-    "SELECT id, deleted, isNull(customer_id), isNull(order_number), isNull(total_amount), isNull(status), isNull(created_at) FROM ${WORKER_CLICKHOUSE_DB}.orders FINAL WHERE id = ${order_id} FORMAT TSVRaw" \
-    "${order_id}"$'\t1\t1\t1\t1\t1\t1'
+    "SELECT id, deleted, isNull(customer_id), isNull(order_number), isNull(total_amount), status, isNull(created_at) FROM ${WORKER_CLICKHOUSE_DB}.orders FINAL WHERE id = ${order_id} FORMAT TSVRaw" \
+    "${order_id}"$'\t1\t1\t1\t1\t\t1'
 
   log "Validacion e2e completada correctamente"
 }
