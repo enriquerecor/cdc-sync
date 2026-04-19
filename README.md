@@ -26,39 +26,19 @@ make env-init
 
 Este paso crea `.env` y `worker/config/tables.json` a partir de sus ejemplos versionados si todavia no existen.
 
-Levantar toda la infraestructura:
+Ejecutar la validación e2e reproducible:
 
 ```bash
-docker compose up -d --build
+make e2e-validate
 ```
 
-Registrar el conector CDC:
+Este comando:
 
-```bash
-make debezium-postgres-apply
-make debezium-postgres-status
-```
-
-## Validación rápida
-
-En una terminal, seguir los logs del worker:
-
-```bash
-docker compose logs -f worker
-```
-
-En otra terminal, insertar una fila en PostgreSQL:
-
-```bash
-docker compose exec postgres psql -U cdc_sync -d cdc_sync -c \
-  "INSERT INTO customers (email, full_name) VALUES ('quick-start@example.com', 'Quick Start Customer');"
-```
-
-Resultado esperado:
-
-- Debezium publica el evento en Kafka.
-- El worker crea la base y las tablas analíticas en ClickHouse si no existen.
-- La fila insertada aparece en `cdc_sync_analytics.customers`.
+- levanta el stack con `docker compose`
+- aplica el conector Debezium
+- ejecuta una validación completa sobre `customers` y `orders`
+- comprueba en ClickHouse los casos de `INSERT`, `UPDATE` y `DELETE` lógico
+- termina con error si alguna comprobación no converge dentro del timeout
 
 ## Qué incluye esta fase
 
@@ -80,9 +60,10 @@ Resultado esperado:
 ## Estado actual
 
 - El alta del conector CDC no se hace automáticamente con `docker compose up`.
-- El flujo soportado y documentado para esta fase es:
+- El flujo recomendado y soportado para esta fase es:
 
 ```bash
-docker compose up -d --build
-make debezium-postgres-apply
+make e2e-validate
 ```
+
+- El flujo manual con `docker compose`, `make debezium-postgres-apply` y consultas directas sigue disponible para depuración.

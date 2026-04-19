@@ -21,39 +21,18 @@ Preparar el entorno local:
 make env-init
 ```
 
-Levantar la infraestructura:
+Ejecutar la validación e2e reproducible:
 
 ```bash
-docker compose up -d --build
+make e2e-validate
 ```
 
-Registrar el conector CDC:
+Este flujo automatiza:
 
-```bash
-make debezium-postgres-apply
-make debezium-postgres-status
-```
-
-## Comprobación rápida
-
-Seguir los logs del worker:
-
-```bash
-docker compose logs -f worker
-```
-
-Insertar una fila de prueba:
-
-```bash
-docker compose exec postgres psql -U cdc_sync -d cdc_sync -c \
-  "INSERT INTO customers (email, full_name) VALUES ('local-stack-check@example.com', 'Local Stack Check');"
-```
-
-Resultado esperado:
-
-- el conector Debezium permanece en `RUNNING`
-- aparece un evento en Kafka para `cdc_sync.public.customers`
-- el worker escribe una línea `cdc_event` con el `email` insertado
+- el arranque del stack completo con `docker compose up -d --build`
+- el alta del conector PostgreSQL en Kafka Connect
+- la validación del flujo `customers` y `orders`
+- las comprobaciones en ClickHouse de `INSERT`, `UPDATE` y `DELETE` lógico
 
 ## Reset global
 
@@ -61,8 +40,16 @@ Si se quiere reconstruir el proyecto desde cero:
 
 ```bash
 docker compose down -v
-docker compose up -d --build
-make debezium-postgres-apply
+make e2e-validate
+```
+
+## Diagnóstico manual
+
+Si se necesita inspeccionar el stack paso a paso:
+
+```bash
+docker compose logs -f worker
+make debezium-postgres-status
 ```
 
 ## Documentación por bloque
