@@ -4,9 +4,10 @@
 
 - base técnica del control plane con FastAPI
 - persistencia propia en PostgreSQL separada del PostgreSQL OLTP del stack CDC
-- migraciones iniciales con Alembic
-- separación mínima entre dominio, aplicación, HTTP e infraestructura
-- routing base y `healthcheck`
+- migraciones con Alembic
+- configuración en edición del MVP con persistencia propia
+- validación previa a escritura y control básico de concurrencia con `updated_at`
+- routing base, `healthcheck` y endpoints de `editing-config`
 
 ## Estructura
 
@@ -79,6 +80,24 @@ independiente del `Dockerfile` para no arrastrar `pytest` ni utilidades de desar
 
 ## Nota de arquitectura
 
-En esta fase no existe todavía lógica funcional de configuración. La base técnica queda preparada para que `#17`
-introduzca el modelo de configuración en edición y para que `#18` publique la configuración activa del worker sin
-acoplar el contrato externo a la persistencia interna del backend.
+La API ya diferencia la configuración en edición del futuro contrato publicado del worker. En `#17` solo se gestiona
+la configuración editable; `#18` materializará la configuración activa compilada sin acoplar el contrato externo a la
+persistencia interna del backend.
+
+## Configuración en edición
+
+La configuración editable del MVP vive en una única raíz `config_editing` con control básico de concurrencia mediante
+`updated_at`.
+
+Endpoints disponibles en esta fase:
+
+- `GET /api/v1/editing-config`
+- `PUT /api/v1/editing-config`
+- `DELETE /api/v1/editing-config`
+
+`PUT` valida primero todo el documento en memoria y solo abre transacción cuando la configuración ya es coherente.
+Si ya existe configuración en edición, el cliente debe enviar `expected_updated_at`; si no coincide con el persistido,
+la API responde `409 Conflict`.
+
+`DELETE` también exige `expected_updated_at` cuando existe configuración en edición. Si el valor no coincide con el
+persistido, la API responde `409 Conflict` y evita borrar cambios más recientes.
