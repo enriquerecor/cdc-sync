@@ -24,6 +24,7 @@ services:
     build:
       context: .
       dockerfile: api/Dockerfile
+      target: runtime
     depends_on:
       control-plane-postgres:
         condition: service_healthy

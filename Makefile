@@ -60,7 +60,8 @@ api-health:
 	curl -fsS "http://localhost:$${API_PORT:-8000}/health"
 
 api-test:
-	@docker compose run --rm api pytest api/tests -v
+	@docker build --target test -f api/Dockerfile -t cdc-sync-api-test .
+	@docker run --rm cdc-sync-api-test
 
 worker-test-deps: $(WORKER_TEST_VENV_STAMP)
 	@echo "Entorno virtual del worker disponible en $(WORKER_TEST_VENV_DIR)"

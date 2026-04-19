@@ -74,6 +74,9 @@ Ejecutar la verificación básica del `healthcheck`:
 make api-test
 ```
 
+La imagen runtime de la API instala solo las dependencias de ejecución. Los tests se ejecutan con un stage
+independiente del `Dockerfile` para no arrastrar `pytest` ni utilidades de desarrollo al contenedor del servicio.
+
 ## Nota de arquitectura
 
 En esta fase no existe todavía lógica funcional de configuración. La base técnica queda preparada para que `#17`
