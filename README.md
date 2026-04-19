@@ -5,7 +5,10 @@ Sistema configurable de sincronización entre BBDD transaccionales y BBDD analí
 ## Stack local
 
 ```text
-PostgreSQL -> Debezium -> Kafka -> Worker (Python) -> ClickHouse
+PostgreSQL (OLTP) -> Debezium -> Kafka -> Worker (Python) -> ClickHouse
+                      ^
+                      |
+FastAPI (control plane) -> PostgreSQL (control plane)
 ```
 
 Esta fase deja levantada la infraestructura base y valida la persistencia versionada extremo a extremo desde
@@ -24,7 +27,22 @@ Preparar los ficheros locales de entorno:
 make env-init
 ```
 
-Este paso crea `.env` y `worker/config/tables.json` a partir de sus ejemplos versionados si todavia no existen.
+Este paso crea `.env` y `worker/config/tables.json` a partir de sus ejemplos versionados si todavía no existen.
+
+## API REST del control plane
+
+La milestone `API REST` introduce un backend FastAPI desacoplado del worker y con persistencia propia en PostgreSQL.
+
+Flujo mínimo local:
+
+```bash
+make env-init
+make api-up
+make api-migrate
+make api-health
+```
+
+La documentación detallada del backend está en [docs/api.md](docs/api.md).
 
 Ejecutar la validación e2e reproducible:
 
@@ -56,6 +74,7 @@ Este comando:
 - [Debezium](docs/debezium.md)
 - [Worker](docs/worker.md)
 - [ClickHouse](docs/clickhouse.md)
+- [API REST](docs/api.md)
 
 ## Estado actual
 

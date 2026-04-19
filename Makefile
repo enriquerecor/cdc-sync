@@ -14,11 +14,16 @@ CONNECT_RETRY_DELAY_SECONDS ?= 2
 
 .DEFAULT_GOAL := help
 
-.PHONY: help env-init worker-test-deps worker-test e2e-validate debezium-postgres-render debezium-postgres-apply debezium-postgres-status
+.PHONY: help env-init api-up api-migrate api-logs api-health api-test worker-test-deps worker-test e2e-validate debezium-postgres-render debezium-postgres-apply debezium-postgres-status
 
 help:
 	@echo "Objetivos disponibles:"
 	@echo "  make env-init"
+	@echo "  make api-up"
+	@echo "  make api-migrate"
+	@echo "  make api-logs"
+	@echo "  make api-health"
+	@echo "  make api-test"
 	@echo "  make worker-test-deps"
 	@echo "  make worker-test"
 	@echo "  make e2e-validate"
@@ -39,6 +44,23 @@ env-init:
 		cp "$(WORKER_TABLE_CONFIG_TEMPLATE)" "$(WORKER_TABLE_CONFIG_OUTPUT)"; \
 		echo "$(WORKER_TABLE_CONFIG_OUTPUT) creado a partir de $(WORKER_TABLE_CONFIG_TEMPLATE)"; \
 	fi
+
+api-up:
+	@docker compose up -d --build control-plane-postgres api
+
+api-migrate:
+	@docker compose up -d control-plane-postgres
+	@docker compose run --rm api alembic -c api/alembic.ini upgrade head
+
+api-logs:
+	@docker compose logs -f api control-plane-postgres
+
+api-health:
+	@set -a; source "$(ENV_FILE)"; set +a; \
+	curl -fsS "http://localhost:$${API_PORT:-8000}/health"
+
+api-test:
+	@docker compose run --rm api pytest api/tests -v
 
 worker-test-deps: $(WORKER_TEST_VENV_STAMP)
 	@echo "Entorno virtual del worker disponible en $(WORKER_TEST_VENV_DIR)"
