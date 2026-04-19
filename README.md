@@ -8,8 +8,8 @@ Sistema configurable de sincronización entre BBDD transaccionales y BBDD analí
 PostgreSQL -> Debezium -> Kafka -> Worker (Python) -> ClickHouse
 ```
 
-Esta fase deja levantada la infraestructura base y valida la conectividad extremo a extremo. No incluye todavía
-inserción en ClickHouse ni sincronización analítica de extremo a extremo.
+Esta fase deja levantada la infraestructura base y valida la persistencia versionada extremo a extremo desde
+PostgreSQL hasta ClickHouse para las tablas configuradas en el worker.
 
 ## Requisitos previos
 
@@ -57,15 +57,16 @@ docker compose exec postgres psql -U cdc_sync -d cdc_sync -c \
 Resultado esperado:
 
 - Debezium publica el evento en Kafka.
-- El worker imprime una línea `cdc_event` en logs con `table=customers`, `operation=insert` y el contenido normalizado de la fila.
+- El worker crea la base y las tablas analíticas en ClickHouse si no existen.
+- La fila insertada aparece en `cdc_sync_analytics.customers`.
 
 ## Qué incluye esta fase
 
 - PostgreSQL local con tablas de prueba `customers` y `orders`
 - ZooKeeper y Kafka para mensajería
 - Debezium Connect con conector PostgreSQL configurable
-- Worker base en Python que consume eventos CDC, los normaliza y los escribe en logs
-- ClickHouse base como destino analítico futuro
+- Worker base en Python que consume eventos CDC, los normaliza y los persiste en ClickHouse
+- ClickHouse como primer destino analítico versionado del pipeline
 
 ## Documentación detallada
 

@@ -2,8 +2,8 @@ from dataclasses import dataclass, field
 
 from adapters.change_event_adapter import ChangeEventAdapter
 from normalized_event import NormalizedEvent, Operation
+from normalized_value import NormalizedRow, validate_normalized_row
 from table_config import TableConfig
-
 
 @dataclass(frozen=True)
 class TopicRoute:
@@ -37,15 +37,25 @@ class NormalizedEventParser:
         self._validate_table_name(route, table_name)
         operation = adapter.extract_operation(value)
         source_data = adapter.extract_data(value, operation)
+        normalized_source_data = validate_normalized_row(
+            route.table_name,
+            source_data,
+            label="payload normalizado",
+        )
 
         return NormalizedEvent(
             table=route.table_name,
             primary_key=self._extract_primary_key(
                 route.table_name,
                 route.table_config,
-                source_data,
+                normalized_source_data,
             ),
-            data=self._build_event_data(operation, source_data),
+            data=self._build_event_data(
+                route.table_name,
+                route.table_config,
+                operation,
+                normalized_source_data,
+            ),
             version=adapter.extract_version(value),
             source_position=adapter.extract_source_position(value),
             deleted=operation is Operation.DELETE,
@@ -56,9 +66,9 @@ class NormalizedEventParser:
         self,
         table_name: str,
         table_config: TableConfig,
-        data: dict[str, object],
-    ) -> dict[str, object]:
-        primary_key: dict[str, object] = {}
+        data: NormalizedRow,
+    ) -> NormalizedRow:
+        primary_key: NormalizedRow = {}
         for field_name in table_config.primary_key_fields:
             if field_name not in data:
                 raise ValueError(
@@ -121,9 +131,32 @@ class NormalizedEventParser:
         )
 
     def _build_event_data(
-        self, operation: Operation, source_data: dict[str, object]
-    ) -> dict[str, object]:
+        self,
+        table_name: str,
+        table_config: TableConfig,
+        operation: Operation,
+        source_data: NormalizedRow,
+    ) -> NormalizedRow:
         if operation is Operation.DELETE:
             return {}
 
+        self._validate_required_destination_fields(
+            table_name,
+            table_config,
+            source_data,
+        )
         return source_data
+
+    def _validate_required_destination_fields(
+        self,
+        table_name: str,
+        table_config: TableConfig,
+        source_data: NormalizedRow,
+    ) -> None:
+        for column in table_config.destination.columns:
+            if column.name in source_data:
+                continue
+
+            raise ValueError(
+                f"El payload normalizado de la tabla '{table_name}' no incluye la columna configurada '{column.name}'"
+            )

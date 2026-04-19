@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import pytest
 from kafka.structs import OffsetAndMetadata, TopicPartition
 
-from config import WorkerConfig
+from config import ClickHouseConfig, WorkerConfig
 from consumer import _deserialize_payload, _persist_records
 from consumer_errors import EventPersistenceError, OffsetCommitError
 from event_sink import EventSink
@@ -76,6 +76,14 @@ def worker_config() -> WorkerConfig:
                 primary_key_fields=("id",),
             )
         },
+        clickhouse=ClickHouseConfig(
+            host="clickhouse",
+            port=9000,
+            secure=False,
+            database="cdc_sync_analytics",
+            user="cdc_sync",
+            password="cdc_sync",
+        ),
     )
 
 

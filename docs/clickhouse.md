@@ -3,8 +3,8 @@
 ## Alcance en esta fase
 
 - servicio base del destino analítico
-- sin tablas de destino
-- sin escrituras desde el worker
+- tablas de destino creadas por el worker al arranque
+- escrituras versionadas desde el worker
 
 ## Arranque
 
@@ -17,7 +17,13 @@ Puertos por defecto:
 - HTTP: `localhost:8123`
 - protocolo nativo: `localhost:9000`
 
-Base inicial:
+Para ClickHouse Cloud, el puerto nativo seguro habitual es `9440` y requiere TLS.
+En el worker, se configura de forma explicita con:
+
+- `WORKER_CLICKHOUSE_PORT=9440`
+- `WORKER_CLICKHOUSE_SECURE=true`
+
+Base usada por el worker:
 
 - `cdc_sync_analytics`
 
@@ -44,6 +50,16 @@ docker compose exec clickhouse clickhouse-client --query "SHOW DATABASES"
 Resultado esperado:
 
 - aparece `cdc_sync_analytics`
+
+Listar tablas creadas por el worker:
+
+```bash
+docker compose exec clickhouse clickhouse-client --query "SHOW TABLES FROM cdc_sync_analytics"
+```
+
+Resultado esperado:
+
+- aparecen `customers` y `orders` si ambas tablas estan habilitadas en `worker/config/tables.json`
 
 ## Recreación del servicio
 

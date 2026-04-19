@@ -1,1 +1,2 @@
 kafka-python==2.2.15
+clickhouse-driver==0.2.9

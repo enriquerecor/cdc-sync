@@ -5,7 +5,8 @@
 - consumidor base en Python
 - suscripción a los topics CDC habilitados en la configuración
 - normalización de eventos CDC a un contrato interno común
-- logging de `NormalizedEvent`
+- bootstrap idempotente de base y tablas en ClickHouse al arranque
+- persistencia versionada de eventos normalizados en ClickHouse
 
 ## Arranque
 
@@ -25,6 +26,34 @@ Contrato minimo actual:
 - `version`
 - `tables`
 
+Configuracion global de destino actual:
+
+- `WORKER_CLICKHOUSE_HOST`
+- `WORKER_CLICKHOUSE_PORT`
+- `WORKER_CLICKHOUSE_SECURE`
+- `WORKER_CLICKHOUSE_DB`
+- `WORKER_CLICKHOUSE_USER`
+- `WORKER_CLICKHOUSE_PASSWORD`
+
+Valores recomendados:
+
+- entorno local: `WORKER_CLICKHOUSE_PORT=9000` y `WORKER_CLICKHOUSE_SECURE=false`
+- ClickHouse Cloud: `WORKER_CLICKHOUSE_PORT=9440` y `WORKER_CLICKHOUSE_SECURE=true`
+
+Ejemplo mínimo para ClickHouse Cloud:
+
+```bash
+WORKER_CLICKHOUSE_HOST=<cluster>.clickhouse.cloud
+WORKER_CLICKHOUSE_PORT=9440
+WORKER_CLICKHOUSE_SECURE=true
+WORKER_CLICKHOUSE_DB=cdc_sync_analytics
+WORKER_CLICKHOUSE_USER=<usuario>
+WORKER_CLICKHOUSE_PASSWORD=<password>
+```
+
+Si se detecta una combinacion sospechosa entre puerto y TLS, el worker emitira un `warning`
+para facilitar la deteccion de configuraciones incoherentes sin bloquear despliegues custom.
+
 Contrato minimo actual por tabla:
 
 - `enabled`
@@ -35,6 +64,19 @@ Contrato minimo actual por tabla:
 - `source.topic`
 - `pk`
 - `sync.mode`
+- `destination.table`
+- `destination.default_nullable` (opcional)
+- `destination.columns[].name`
+- `destination.columns[].type`
+- `destination.columns[].nullable` (opcional)
+
+Restricciones de `destination.columns`:
+
+- debe incluir todas las columnas de PK declaradas en `pk`
+- las columnas de PK no pueden ser `nullable`
+- no se pueden declarar las columnas tecnicas `version` y `deleted`; las anadira el sistema
+- si una columna no declara `nullable`, heredara `destination.default_nullable`
+- si tampoco existe `destination.default_nullable`, la nulabilidad efectiva sera `false`
 
 Arrancar el servicio:
 
@@ -71,6 +113,8 @@ Semantica actual:
 - `source_position` conserva la metadata de posicion original del origen para trazabilidad y futuros adapters
 - para Debezium PostgreSQL, `version` se resuelve de forma estricta desde `payload.source.lsn`
 - para Debezium PostgreSQL, `source_position` se expone como `{"lsn": <valor>}`
+- `missing` y `null` no son equivalentes: un upsert debe incluir todas las columnas configuradas en destino
+- los deletes logicos se materializan con PK + columnas tecnicas; el flag `deleted` marca el borrado
 
 ## Validaciones
 
@@ -89,6 +133,7 @@ docker compose logs -f worker
 Resultado esperado al arrancar:
 
 - aparece una línea `worker_started`
+- aparece una línea `clickhouse_schema_ready`
 
 ## Tests
 
@@ -124,7 +169,14 @@ docker compose exec postgres psql -U cdc_sync -d cdc_sync -c \
 
 Resultado esperado:
 
-- el worker escribe una línea `cdc_event` con `table=customers` y `operation=insert`
+- aparece una fila versionada en ClickHouse:
+
+```bash
+docker compose exec clickhouse clickhouse-client --query \
+  "SELECT id, email, full_name, deleted FROM cdc_sync_analytics.customers FINAL WHERE email = 'worker-check@example.com'"
+```
+
+- el resultado incluye la fila insertada con `deleted = 0`
 
 Validar también `orders`:
 
@@ -135,7 +187,14 @@ docker compose exec postgres psql -U cdc_sync -d cdc_sync -c \
 
 Resultado esperado:
 
-- aparece una segunda línea `cdc_event` con `table=orders` y `operation=insert`
+- aparece una fila versionada en ClickHouse:
+
+```bash
+docker compose exec clickhouse clickhouse-client --query \
+  "SELECT order_number, status, deleted FROM cdc_sync_analytics.orders FINAL WHERE order_number = 'WORKER-CHECK-ORDER'"
+```
+
+- el resultado incluye la fila insertada con `deleted = 0`
 
 ## Nota sobre offsets
 

@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from enum import Enum
 
+from normalized_value import NormalizedRow
+
 
 class Operation(Enum):
     INSERT = "insert"
@@ -12,8 +14,8 @@ class Operation(Enum):
 @dataclass(frozen=True)
 class NormalizedEvent:
     table: str
-    primary_key: dict[str, object]
-    data: dict[str, object]
+    primary_key: NormalizedRow
+    data: NormalizedRow
     version: int
     source_position: dict[str, object]
     deleted: bool
