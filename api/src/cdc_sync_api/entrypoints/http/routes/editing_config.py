@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from cdc_sync_api.application.errors import (
@@ -71,13 +69,13 @@ def put_editing_config(
 
 @router.delete("", status_code=status.HTTP_204_NO_CONTENT)
 def delete_editing_config(
-    expected_updated_at: datetime | None = Query(default=None),
+    expected_version: int | None = Query(default=None, gt=0),
     use_case: DeleteEditingConfigUseCase = Depends(
         get_delete_editing_config_use_case
     ),
 ) -> Response:
     try:
-        use_case.execute(expected_updated_at)
+        use_case.execute(expected_version)
     except EditingConfigConflictError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

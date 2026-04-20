@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Protocol
 
 from cdc_sync_api.application.dto.editing_config_dto import EditingConfigDto
@@ -14,9 +13,9 @@ class EditingConfigRepository(Protocol):
         self,
         *,
         config: EditingConfigDto,
-        expected_updated_at: datetime | None,
+        expected_version: int | None,
     ) -> EditingConfigDto:
         """Guarda la configuración en edición si la concurrencia es válida."""
 
-    def delete(self, *, expected_updated_at: datetime | None) -> bool:
+    def delete(self, *, expected_version: int | None) -> bool:
         """Elimina la configuración en edición si la concurrencia es válida."""

@@ -6,7 +6,7 @@
 - persistencia propia en PostgreSQL separada del PostgreSQL OLTP del stack CDC
 - migraciones con Alembic
 - configuración en edición del MVP con persistencia propia
-- validación previa a escritura y control básico de concurrencia con `updated_at`
+- validación previa a escritura y control básico de concurrencia con `version`
 - routing base, `healthcheck` y endpoints de `editing-config`
 
 ## Estructura
@@ -87,7 +87,7 @@ persistencia interna del backend.
 ## Configuración en edición
 
 La configuración editable del MVP vive en una única raíz `config_editing` con control básico de concurrencia mediante
-`updated_at`.
+`version`. El campo `updated_at` queda como metadato de auditoría.
 
 Endpoints disponibles en esta fase:
 
@@ -96,8 +96,8 @@ Endpoints disponibles en esta fase:
 - `DELETE /api/v1/editing-config`
 
 `PUT` valida primero todo el documento en memoria y solo abre transacción cuando la configuración ya es coherente.
-Si ya existe configuración en edición, el cliente debe enviar `expected_updated_at`; si no coincide con el persistido,
+Si ya existe configuración en edición, el cliente debe enviar `expected_version`; si no coincide con el persistido,
 la API responde `409 Conflict`.
 
-`DELETE` también exige `expected_updated_at` cuando existe configuración en edición. Si el valor no coincide con el
+`DELETE` también exige `expected_version` cuando existe configuración en edición. Si el valor no coincide con el
 persistido, la API responde `409 Conflict` y evita borrar cambios más recientes.

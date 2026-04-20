@@ -10,6 +10,7 @@ config_editing = sa.Table(
     "config_editing",
     metadata,
     sa.Column("id", sa.SmallInteger(), primary_key=True),
+    sa.Column("version", sa.BigInteger(), nullable=False),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     sa.CheckConstraint("id = 1", name="ck_config_editing_singleton"),
 )

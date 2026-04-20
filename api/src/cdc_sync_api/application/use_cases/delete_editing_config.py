@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from cdc_sync_api.application.errors import (
     EditingConfigConflictError,
     EditingConfigNotFoundError,
@@ -13,13 +11,13 @@ class DeleteEditingConfigUseCase:
     def __init__(self, repository: EditingConfigRepository) -> None:
         self._repository = repository
 
-    def execute(self, expected_updated_at: datetime | None) -> None:
+    def execute(self, expected_version: int | None) -> None:
         current_config = self._repository.get()
         if current_config is None:
             raise EditingConfigNotFoundError("No existe configuración en edición")
 
-        _validate_concurrency(current_config.updated_at, expected_updated_at)
-        deleted = self._repository.delete(expected_updated_at=current_config.updated_at)
+        _validate_concurrency(current_config.version, expected_version)
+        deleted = self._repository.delete(expected_version=current_config.version)
         if deleted:
             return
 
@@ -27,20 +25,20 @@ class DeleteEditingConfigUseCase:
 
 
 def _validate_concurrency(
-    current_updated_at: datetime | None,
-    expected_updated_at: datetime | None,
+    current_version: int | None,
+    expected_version: int | None,
 ) -> None:
-    if current_updated_at is None:
+    if current_version is None:
         raise EditingConfigConflictError(
-            "La configuración en edición no tiene updated_at persistido"
+            "La configuración en edición no tiene version persistida"
         )
 
-    if expected_updated_at is None:
+    if expected_version is None:
         raise EditingConfigConflictError(
-            "Debe indicar expected_updated_at para borrar la configuración en edición"
+            "Debe indicar expected_version para borrar la configuración en edición"
         )
 
-    if current_updated_at == expected_updated_at:
+    if current_version == expected_version:
         return
 
     raise EditingConfigConflictError(

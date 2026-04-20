@@ -36,20 +36,20 @@ class InMemoryEditingConfigRepository:
         self,
         *,
         config: EditingConfigDto,
-        expected_updated_at: datetime | None,
+        expected_version: int | None,
     ) -> EditingConfigDto:
         if self._config is None:
-            if expected_updated_at is not None:
+            if expected_version is not None:
                 raise EditingConfigConflictError(
-                    "No existe configuración en edición para el updated_at indicado"
+                    "No existe configuración en edición para la version indicada"
                 )
         else:
-            if expected_updated_at is None:
+            if expected_version is None:
                 raise EditingConfigConflictError(
-                    "Debe indicar expected_updated_at para sobrescribir la configuración en edición"
+                    "Debe indicar expected_version para sobrescribir la configuración en edición"
                 )
 
-            if self._config.updated_at != expected_updated_at:
+            if self._config.version != expected_version:
                 raise EditingConfigConflictError(
                     "La configuración en edición fue modificada por otra operación"
                 )
@@ -58,19 +58,23 @@ class InMemoryEditingConfigRepository:
         persisted_updated_at = datetime(2026, 4, 19, 18, 0, tzinfo=UTC) + timedelta(
             seconds=self._revision
         )
-        self._config = replace(config, updated_at=persisted_updated_at)
+        self._config = replace(
+            config,
+            version=self._revision,
+            updated_at=persisted_updated_at,
+        )
         return self._config
 
-    def delete(self, *, expected_updated_at: datetime | None) -> bool:
+    def delete(self, *, expected_version: int | None) -> bool:
         if self._config is None:
             return False
 
-        if expected_updated_at is None:
+        if expected_version is None:
             raise EditingConfigConflictError(
-                "Debe indicar expected_updated_at para borrar la configuración en edición"
+                "Debe indicar expected_version para borrar la configuración en edición"
             )
 
-        if self._config.updated_at != expected_updated_at:
+        if self._config.version != expected_version:
             raise EditingConfigConflictError(
                 "La configuración en edición fue modificada por otra operación"
             )
@@ -87,6 +91,7 @@ def test_editing_config_put_get_and_delete_happy_path() -> None:
 
     assert put_response.status_code == 200
     body = put_response.json()
+    assert body["version"] == 1
     assert body["source_connections"][0]["name"] == "postgres_local"
     assert body["tables"][0]["sync"]["mode"] == "realtime"
     assert body["updated_at"]
@@ -98,7 +103,7 @@ def test_editing_config_put_get_and_delete_happy_path() -> None:
 
     delete_response = client.delete(
         "/api/v1/editing-config",
-        params={"expected_updated_at": body["updated_at"]},
+        params={"expected_version": body["version"]},
     )
 
     assert delete_response.status_code == 204
@@ -124,7 +129,7 @@ def test_editing_config_put_returns_422_when_sync_mode_is_invalid() -> None:
     assert repository.get() is None
 
 
-def test_editing_config_put_returns_409_when_expected_updated_at_is_missing() -> None:
+def test_editing_config_put_returns_409_when_expected_version_is_missing() -> None:
     repository = InMemoryEditingConfigRepository()
     client = _build_client(repository)
     created_response = client.put("/api/v1/editing-config", json=_build_valid_payload())
@@ -135,32 +140,63 @@ def test_editing_config_put_returns_409_when_expected_updated_at_is_missing() ->
 
     assert stale_response.status_code == 409
     assert stale_response.json() == {
-        "detail": "Debe indicar expected_updated_at para sobrescribir la configuración en edición"
+        "detail": "Debe indicar expected_version para sobrescribir la configuración en edición"
     }
 
 
-def test_editing_config_delete_returns_409_when_expected_updated_at_is_stale() -> None:
+def test_editing_config_delete_returns_409_when_expected_version_is_stale() -> None:
     repository = InMemoryEditingConfigRepository()
     client = _build_client(repository)
 
     first_response = client.put("/api/v1/editing-config", json=_build_valid_payload())
     assert first_response.status_code == 200
-    stale_updated_at = first_response.json()["updated_at"]
+    stale_version = first_response.json()["version"]
 
     second_payload = _build_valid_payload()
-    second_payload["expected_updated_at"] = stale_updated_at
+    second_payload["expected_version"] = stale_version
     second_response = client.put("/api/v1/editing-config", json=second_payload)
     assert second_response.status_code == 200
 
     delete_response = client.delete(
         "/api/v1/editing-config",
-        params={"expected_updated_at": stale_updated_at},
+        params={"expected_version": stale_version},
     )
 
     assert delete_response.status_code == 409
     assert delete_response.json() == {
         "detail": "La configuración en edición fue modificada por otra operación"
     }
+
+
+def test_editing_config_put_accepts_expected_version() -> None:
+    repository = InMemoryEditingConfigRepository()
+    client = _build_client(repository)
+
+    created_response = client.put("/api/v1/editing-config", json=_build_valid_payload())
+    assert created_response.status_code == 200
+
+    payload = _build_valid_payload()
+    payload["expected_version"] = 1
+
+    updated_response = client.put("/api/v1/editing-config", json=payload)
+
+    assert updated_response.status_code == 200
+    assert updated_response.json()["version"] == 2
+
+
+def test_editing_config_delete_accepts_expected_version() -> None:
+    repository = InMemoryEditingConfigRepository()
+    client = _build_client(repository)
+
+    created_response = client.put("/api/v1/editing-config", json=_build_valid_payload())
+    assert created_response.status_code == 200
+
+    delete_response = client.delete(
+        "/api/v1/editing-config",
+        params={"expected_version": 1},
+    )
+
+    assert delete_response.status_code == 204
 
 
 def _build_client(repository: InMemoryEditingConfigRepository) -> TestClient:
@@ -179,7 +215,7 @@ def _build_client(repository: InMemoryEditingConfigRepository) -> TestClient:
 
 def _build_valid_payload() -> dict[str, object]:
     return {
-        "expected_updated_at": None,
+        "expected_version": None,
         "source_connections": [
             {
                 "name": "postgres_local",

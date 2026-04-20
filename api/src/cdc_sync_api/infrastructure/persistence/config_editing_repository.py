@@ -8,7 +8,6 @@ from cdc_sync_api.application.errors import EditingConfigConflictError
 from cdc_sync_api.infrastructure.persistence.config_editing_storage import (
     insert_editing_config,
     load_editing_config,
-    normalize_datetime,
 )
 from cdc_sync_api.infrastructure.persistence.config_editing_tables import (
     CONFIG_EDITING_ID,
@@ -35,7 +34,10 @@ class SqlAlchemyEditingConfigRepository:
             )
             with connection.begin():
                 config_row = connection.execute(
-                    sa.select(config_editing.c.updated_at).where(
+                    sa.select(
+                        config_editing.c.version,
+                        config_editing.c.updated_at,
+                    ).where(
                         config_editing.c.id == CONFIG_EDITING_ID
                     )
                 ).mappings().one_or_none()
@@ -44,6 +46,7 @@ class SqlAlchemyEditingConfigRepository:
 
                 return load_editing_config(
                     connection,
+                    version=config_row["version"],
                     updated_at=config_row["updated_at"],
                 )
 
@@ -51,17 +54,20 @@ class SqlAlchemyEditingConfigRepository:
         self,
         *,
         config: EditingConfigDto,
-        expected_updated_at: datetime | None,
+        expected_version: int | None,
     ) -> EditingConfigDto:
-        persisted_updated_at = datetime.now(UTC)
-
         with self._engine.begin() as connection:
             current_row = connection.execute(
-                sa.select(config_editing.c.updated_at)
+                sa.select(
+                    config_editing.c.version,
+                    config_editing.c.updated_at,
+                )
                 .where(config_editing.c.id == CONFIG_EDITING_ID)
                 .with_for_update()
             ).mappings().one_or_none()
-            self._validate_expected_updated_at(current_row, expected_updated_at)
+            self._validate_expected_version(current_row, expected_version)
+            persisted_version = _build_next_version(current_row)
+            persisted_updated_at = datetime.now(UTC)
 
             if current_row is not None:
                 connection.execute(
@@ -73,53 +79,57 @@ class SqlAlchemyEditingConfigRepository:
             try:
                 connection.execute(
                     _build_insert_config_editing_statement(
-                        persisted_updated_at=persisted_updated_at
+                        persisted_version=persisted_version,
+                        persisted_updated_at=persisted_updated_at,
                     )
                 )
             except IntegrityError as exc:
                 _raise_conflict_on_concurrent_initial_save(
                     current_row=current_row,
-                    expected_updated_at=expected_updated_at,
+                    expected_version=expected_version,
                     error=exc,
                 )
             insert_editing_config(connection, config=config)
 
-        return replace(config, updated_at=persisted_updated_at)
+        return replace(
+            config,
+            version=persisted_version,
+            updated_at=persisted_updated_at,
+        )
 
-    def delete(self, *, expected_updated_at: datetime | None) -> bool:
+    def delete(self, *, expected_version: int | None) -> bool:
         with self._engine.begin() as connection:
             current_row = connection.execute(
-                sa.select(config_editing.c.updated_at)
+                sa.select(config_editing.c.version)
                 .where(config_editing.c.id == CONFIG_EDITING_ID)
                 .with_for_update()
             ).mappings().one_or_none()
-            self._validate_expected_updated_at(current_row, expected_updated_at)
+            self._validate_expected_version(current_row, expected_version)
             deleted_rows = connection.execute(
                 sa.delete(config_editing).where(config_editing.c.id == CONFIG_EDITING_ID)
             )
 
         return deleted_rows.rowcount > 0
 
-    def _validate_expected_updated_at(
+    def _validate_expected_version(
         self,
         current_row: sa.RowMapping | None,
-        expected_updated_at: datetime | None,
+        expected_version: int | None,
     ) -> None:
         if current_row is None:
-            if expected_updated_at is None:
+            if expected_version is None:
                 return
 
             raise EditingConfigConflictError(
-                "No existe configuración en edición para el updated_at indicado"
+                "No existe configuración en edición para la version indicada"
             )
 
-        if expected_updated_at is None:
+        if expected_version is None:
             raise EditingConfigConflictError(
-                "Debe indicar expected_updated_at para sobrescribir la configuración en edición"
+                "Debe indicar expected_version para sobrescribir la configuración en edición"
             )
 
-        current_updated_at = normalize_datetime(current_row["updated_at"])
-        if normalize_datetime(expected_updated_at) == current_updated_at:
+        if current_row["version"] == expected_version:
             return
 
         raise EditingConfigConflictError(
@@ -129,10 +139,12 @@ class SqlAlchemyEditingConfigRepository:
 
 def _build_insert_config_editing_statement(
     *,
+    persisted_version: int,
     persisted_updated_at: datetime,
 ) -> sa.Insert:
     return sa.insert(config_editing).values(
         id=CONFIG_EDITING_ID,
+        version=persisted_version,
         updated_at=persisted_updated_at,
     )
 
@@ -140,12 +152,19 @@ def _build_insert_config_editing_statement(
 def _raise_conflict_on_concurrent_initial_save(
     *,
     current_row: sa.RowMapping | None,
-    expected_updated_at: datetime | None,
+    expected_version: int | None,
     error: IntegrityError,
 ) -> None:
-    if current_row is None and expected_updated_at is None:
+    if current_row is None and expected_version is None:
         raise EditingConfigConflictError(
             "La configuración en edición fue modificada por otra operación"
         ) from error
 
     raise error
+
+
+def _build_next_version(current_row: sa.RowMapping | None) -> int:
+    if current_row is None:
+        return 1
+
+    return int(current_row["version"]) + 1

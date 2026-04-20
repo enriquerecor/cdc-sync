@@ -17,42 +17,43 @@ class SaveEditingConfigUseCase:
 
     def execute(self, request: SaveEditingConfigDto) -> EditingConfigDto:
         config = EditingConfigDto(
+            version=None,
             updated_at=None,
             source_connections=request.source_connections,
             tables=request.tables,
         )
         validate_editing_config(config)
         current_config = self._repository.get()
-        _validate_concurrency(current_config, request.expected_updated_at)
+        _validate_concurrency(current_config, request.expected_version)
 
-        expected_updated_at = None
+        expected_version = None
         if current_config is not None:
-            expected_updated_at = current_config.updated_at
+            expected_version = current_config.version
 
         return self._repository.save(
             config=config,
-            expected_updated_at=expected_updated_at,
+            expected_version=expected_version,
         )
 
 
 def _validate_concurrency(
     current_config: EditingConfigDto | None,
-    expected_updated_at,
+    expected_version: int | None,
 ) -> None:
     if current_config is None:
-        if expected_updated_at is None:
+        if expected_version is None:
             return
 
         raise EditingConfigConflictError(
-            "No existe configuración en edición para el updated_at indicado"
+            "No existe configuración en edición para la version indicada"
         )
 
-    if expected_updated_at is None:
+    if expected_version is None:
         raise EditingConfigConflictError(
-            "Debe indicar expected_updated_at para sobrescribir la configuración en edición"
+            "Debe indicar expected_version para sobrescribir la configuración en edición"
         )
 
-    if current_config.updated_at == expected_updated_at:
+    if current_config.version == expected_version:
         return
 
     raise EditingConfigConflictError(

@@ -9,6 +9,7 @@ from cdc_sync_api.application.errors import EditingConfigConflictError
 from cdc_sync_api.infrastructure.persistence.config_editing_repository import (
     CONSISTENT_READ_ISOLATION_LEVEL,
     SqlAlchemyEditingConfigRepository,
+    _build_next_version,
     _raise_conflict_on_concurrent_initial_save,
 )
 
@@ -23,7 +24,7 @@ def test_initial_save_conflict_maps_integrity_error_to_domain_conflict() -> None
     try:
         _raise_conflict_on_concurrent_initial_save(
             current_row=None,
-            expected_updated_at=None,
+            expected_version=None,
             error=database_error,
         )
     except EditingConfigConflictError as exc:
@@ -45,6 +46,14 @@ def test_get_uses_repeatable_read_transaction_for_consistent_snapshot() -> None:
     ]
     assert engine.connection.begin_calls == 1
     assert engine.connection.execute_calls == 1
+
+
+def test_build_next_version_starts_at_one_without_previous_row() -> None:
+    assert _build_next_version(None) == 1
+
+
+def test_build_next_version_increments_previous_value() -> None:
+    assert _build_next_version({"version": 7}) == 8
 
 
 class FakeEngine:

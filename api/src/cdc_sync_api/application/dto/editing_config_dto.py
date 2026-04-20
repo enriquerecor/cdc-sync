@@ -39,6 +39,7 @@ class EditingTableDto:
 
 @dataclass(frozen=True)
 class EditingConfigDto:
+    version: int | None
     updated_at: datetime | None
     source_connections: tuple[EditingSourceConnectionDto, ...]
     tables: tuple[EditingTableDto, ...]
@@ -46,6 +47,6 @@ class EditingConfigDto:
 
 @dataclass(frozen=True)
 class SaveEditingConfigDto:
-    expected_updated_at: datetime | None
+    expected_version: int | None
     source_connections: tuple[EditingSourceConnectionDto, ...]
     tables: tuple[EditingTableDto, ...]

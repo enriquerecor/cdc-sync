@@ -21,9 +21,11 @@ from cdc_sync_api.infrastructure.persistence.config_editing_tables import (
 def load_editing_config(
     connection: sa.Connection,
     *,
+    version: int,
     updated_at: datetime,
 ) -> EditingConfigDto:
     return EditingConfigDto(
+        version=version,
         updated_at=normalize_datetime(updated_at),
         source_connections=_load_source_connections(connection),
         tables=_load_tables(connection),

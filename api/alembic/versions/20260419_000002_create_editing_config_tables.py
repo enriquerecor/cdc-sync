@@ -22,6 +22,7 @@ def upgrade() -> None:
     op.create_table(
         "config_editing",
         sa.Column("id", sa.SmallInteger(), nullable=False),
+        sa.Column("version", sa.BigInteger(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.CheckConstraint("id = 1", name="ck_config_editing_singleton"),
         sa.PrimaryKeyConstraint("id"),

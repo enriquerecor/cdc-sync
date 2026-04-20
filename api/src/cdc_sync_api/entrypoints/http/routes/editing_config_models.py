@@ -12,6 +12,7 @@ from cdc_sync_api.application.dto.editing_config_dto import (
     SaveEditingConfigDto,
 )
 
+
 class EditingSourceConnectionBody(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -34,6 +35,7 @@ class EditingSourceConnectionBody(BaseModel):
             username=self.username,
             password=self.password,
         )
+
     @classmethod
     def from_dto(cls, dto: EditingSourceConnectionDto) -> "EditingSourceConnectionBody":
         return cls(
@@ -44,6 +46,7 @@ class EditingSourceConnectionBody(BaseModel):
             username=dto.username,
             password=dto.password,
         )
+
 
 class EditingDestinationColumnBody(BaseModel):
     model_config = ConfigDict(
@@ -61,6 +64,7 @@ class EditingDestinationColumnBody(BaseModel):
             type=self.type,
             nullable=self.nullable,
         )
+
     @classmethod
     def from_dto(cls, dto: EditingDestinationColumnDto) -> "EditingDestinationColumnBody":
         return cls(
@@ -68,6 +72,7 @@ class EditingDestinationColumnBody(BaseModel):
             type=dto.type,
             nullable=dto.nullable,
         )
+
 
 class EditingTableSourceBody(BaseModel):
     model_config = ConfigDict(
@@ -81,6 +86,7 @@ class EditingTableSourceBody(BaseModel):
     table: StrictStr = Field(min_length=1)
     topic: StrictStr = Field(min_length=1)
 
+
 class EditingTableSyncBody(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -88,6 +94,7 @@ class EditingTableSyncBody(BaseModel):
         str_strip_whitespace=True,
     )
     mode: StrictStr = Field(min_length=1)
+
 
 class EditingTableDestinationBody(BaseModel):
     model_config = ConfigDict(
@@ -98,6 +105,7 @@ class EditingTableDestinationBody(BaseModel):
     table: StrictStr = Field(min_length=1)
     default_nullable: StrictBool | None = None
     columns: list[EditingDestinationColumnBody]
+
 
 class EditingTableBody(BaseModel):
     model_config = ConfigDict(
@@ -111,6 +119,7 @@ class EditingTableBody(BaseModel):
     pk: list[StrictStr]
     sync: EditingTableSyncBody
     destination: EditingTableDestinationBody
+
     def to_dto(self) -> EditingTableDto:
         return EditingTableDto(
             logical_name=self.name,
@@ -128,6 +137,7 @@ class EditingTableBody(BaseModel):
                 column.to_dto() for column in self.destination.columns
             ),
         )
+
     @classmethod
     def from_dto(cls, dto: EditingTableDto) -> "EditingTableBody":
         return cls(
@@ -152,30 +162,37 @@ class EditingTableBody(BaseModel):
             ),
         )
 
+
 class PutEditingConfigRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    expected_updated_at: datetime | None = None
+    expected_version: StrictInt | None = Field(default=None, gt=0)
     source_connections: list[EditingSourceConnectionBody]
     tables: list[EditingTableBody]
 
     def to_dto(self) -> SaveEditingConfigDto:
         return SaveEditingConfigDto(
-            expected_updated_at=self.expected_updated_at,
-            source_connections=tuple(source.to_dto() for source in self.source_connections),
+            expected_version=self.expected_version,
+            source_connections=tuple(
+                source.to_dto() for source in self.source_connections
+            ),
             tables=tuple(table.to_dto() for table in self.tables),
         )
 
+
 class EditingConfigResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
+    version: StrictInt
     updated_at: datetime
     source_connections: list[EditingSourceConnectionBody]
     tables: list[EditingTableBody]
 
     @classmethod
     def from_dto(cls, dto: EditingConfigDto) -> "EditingConfigResponse":
-        if dto.updated_at is None:
-            raise ValueError("EditingConfigResponse requiere updated_at")
+        if dto.version is None or dto.updated_at is None:
+            raise ValueError("EditingConfigResponse requiere version y updated_at")
+
         return cls(
+            version=dto.version,
             updated_at=dto.updated_at,
             source_connections=[
                 EditingSourceConnectionBody.from_dto(source)
