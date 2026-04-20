@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 import sqlalchemy as sa
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import IntegrityError
 
 from cdc_sync_api.application.dto.editing_config_dto import EditingConfigDto
 from cdc_sync_api.application.errors import EditingConfigConflictError
@@ -61,12 +62,18 @@ class SqlAlchemyEditingConfigRepository:
                     )
                 )
 
-            connection.execute(
-                sa.insert(config_editing).values(
-                    id=CONFIG_EDITING_ID,
-                    updated_at=persisted_updated_at,
+            try:
+                connection.execute(
+                    _build_insert_config_editing_statement(
+                        persisted_updated_at=persisted_updated_at
+                    )
                 )
-            )
+            except IntegrityError as exc:
+                _raise_conflict_on_concurrent_initial_save(
+                    current_row=current_row,
+                    expected_updated_at=expected_updated_at,
+                    error=exc,
+                )
             insert_editing_config(connection, config=config)
 
         return replace(config, updated_at=persisted_updated_at)
@@ -110,3 +117,27 @@ class SqlAlchemyEditingConfigRepository:
         raise EditingConfigConflictError(
             "La configuración en edición fue modificada por otra operación"
         )
+
+
+def _build_insert_config_editing_statement(
+    *,
+    persisted_updated_at: datetime,
+) -> sa.Insert:
+    return sa.insert(config_editing).values(
+        id=CONFIG_EDITING_ID,
+        updated_at=persisted_updated_at,
+    )
+
+
+def _raise_conflict_on_concurrent_initial_save(
+    *,
+    current_row: sa.RowMapping | None,
+    expected_updated_at: datetime | None,
+    error: IntegrityError,
+) -> None:
+    if current_row is None and expected_updated_at is None:
+        raise EditingConfigConflictError(
+            "La configuración en edición fue modificada por otra operación"
+        ) from error
+
+    raise error
