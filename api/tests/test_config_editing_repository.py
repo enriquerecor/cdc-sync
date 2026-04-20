@@ -9,11 +9,12 @@ from cdc_sync_api.application.errors import EditingConfigConflictError
 from cdc_sync_api.infrastructure.persistence.config_editing_repository import (
     CONSISTENT_READ_ISOLATION_LEVEL,
     SqlAlchemyEditingConfigRepository,
-    _build_next_version,
+    _load_next_version,
     _raise_conflict_on_concurrent_initial_save,
 )
 from cdc_sync_api.infrastructure.persistence.config_editing_tables import (
     config_editing_table,
+    config_editing_version_seq,
 )
 
 
@@ -51,12 +52,18 @@ def test_get_uses_repeatable_read_transaction_for_consistent_snapshot() -> None:
     assert engine.connection.execute_calls == 1
 
 
-def test_build_next_version_starts_at_one_without_previous_row() -> None:
-    assert _build_next_version(None) == 1
+def test_load_next_version_reads_sequence_value() -> None:
+    connection = FakeScalarConnection(next_scalar=8)
+
+    result = _load_next_version(connection)
+
+    assert result == 8
+    assert connection.scalar_calls == 1
 
 
-def test_build_next_version_increments_previous_value() -> None:
-    assert _build_next_version({"version": 7}) == 8
+def test_version_sequence_belongs_to_control_plane_schema() -> None:
+    assert config_editing_version_seq.schema == "control_plane"
+    assert config_editing_version_seq.name == "config_editing_version_seq"
 
 
 def test_table_source_connection_fk_is_cascade_compatible() -> None:
@@ -104,3 +111,21 @@ class FakeResult:
 
     def one_or_none(self) -> None:
         return None
+
+
+class FakeScalarConnection:
+    def __init__(self, *, next_scalar: int) -> None:
+        self._next_scalar = next_scalar
+        self.scalar_calls = 0
+
+    def execute(self, _statement: object) -> "FakeScalarResult":
+        self.scalar_calls += 1
+        return FakeScalarResult(self._next_scalar)
+
+
+class FakeScalarResult:
+    def __init__(self, value: int) -> None:
+        self._value = value
+
+    def scalar_one(self) -> int:
+        return self._value

@@ -199,6 +199,47 @@ def test_editing_config_delete_accepts_expected_version() -> None:
     assert delete_response.status_code == 204
 
 
+def test_editing_config_recreate_keeps_version_monotonic_after_delete() -> None:
+    repository = InMemoryEditingConfigRepository()
+    client = _build_client(repository)
+
+    first_response = client.put("/api/v1/editing-config", json=_build_valid_payload())
+    assert first_response.status_code == 200
+    first_version = first_response.json()["version"]
+
+    delete_response = client.delete(
+        "/api/v1/editing-config",
+        params={"expected_version": first_version},
+    )
+    assert delete_response.status_code == 204
+
+    recreated_response = client.put("/api/v1/editing-config", json=_build_valid_payload())
+    assert recreated_response.status_code == 200
+    recreated_version = recreated_response.json()["version"]
+
+    assert recreated_version > first_version
+
+    stale_put_payload = _build_valid_payload()
+    stale_put_payload["expected_version"] = first_version
+
+    stale_put_response = client.put("/api/v1/editing-config", json=stale_put_payload)
+
+    assert stale_put_response.status_code == 409
+    assert stale_put_response.json() == {
+        "detail": "La configuración en edición fue modificada por otra operación"
+    }
+
+    stale_delete_response = client.delete(
+        "/api/v1/editing-config",
+        params={"expected_version": first_version},
+    )
+
+    assert stale_delete_response.status_code == 409
+    assert stale_delete_response.json() == {
+        "detail": "La configuración en edición fue modificada por otra operación"
+    }
+
+
 def _build_client(repository: InMemoryEditingConfigRepository) -> TestClient:
     app = build_app()
     app.dependency_overrides[get_editing_config_use_case] = lambda: GetEditingConfigUseCase(

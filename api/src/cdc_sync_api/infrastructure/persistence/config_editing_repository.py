@@ -12,6 +12,7 @@ from cdc_sync_api.infrastructure.persistence.config_editing_storage import (
 from cdc_sync_api.infrastructure.persistence.config_editing_tables import (
     CONFIG_EDITING_ID,
     config_editing,
+    config_editing_version_seq,
 )
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
@@ -66,7 +67,7 @@ class SqlAlchemyEditingConfigRepository:
                 .with_for_update()
             ).mappings().one_or_none()
             self._validate_expected_version(current_row, expected_version)
-            persisted_version = _build_next_version(current_row)
+            persisted_version = _load_next_version(connection)
             persisted_updated_at = datetime.now(UTC)
 
             if current_row is not None:
@@ -163,8 +164,9 @@ def _raise_conflict_on_concurrent_initial_save(
     raise error
 
 
-def _build_next_version(current_row: sa.RowMapping | None) -> int:
-    if current_row is None:
-        return 1
-
-    return int(current_row["version"]) + 1
+def _load_next_version(connection: sa.Connection) -> int:
+    return int(
+        connection.execute(
+            sa.select(config_editing_version_seq.next_value())
+        ).scalar_one()
+    )

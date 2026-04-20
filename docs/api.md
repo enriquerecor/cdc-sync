@@ -87,7 +87,8 @@ persistencia interna del backend.
 ## Configuración en edición
 
 La configuración editable del MVP vive en una única raíz `config_editing` con control básico de concurrencia mediante
-`version`. El campo `updated_at` queda como metadato de auditoría.
+`version`. Ese valor lo genera PostgreSQL con una secuencia monotónica y no se reutiliza tras borrar y recrear la
+configuración. El campo `updated_at` queda como metadato de auditoría.
 
 Endpoints disponibles en esta fase:
 

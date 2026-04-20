@@ -5,6 +5,11 @@ import sqlalchemy as sa
 CONFIG_EDITING_ID = 1
 CONTROL_PLANE_SCHEMA = "control_plane"
 metadata = sa.MetaData(schema=CONTROL_PLANE_SCHEMA)
+config_editing_version_seq = sa.Sequence(
+    "config_editing_version_seq",
+    schema=CONTROL_PLANE_SCHEMA,
+    metadata=metadata,
+)
 
 config_editing = sa.Table(
     "config_editing",

@@ -19,6 +19,7 @@ SCHEMA_NAME = "control_plane"
 
 
 def upgrade() -> None:
+    op.execute(sa.schema.CreateSequence(sa.Sequence("config_editing_version_seq", schema=SCHEMA_NAME)))
     op.create_table(
         "config_editing",
         sa.Column("id", sa.SmallInteger(), nullable=False),
@@ -118,3 +119,4 @@ def downgrade() -> None:
     op.drop_table("config_editing_table", schema=SCHEMA_NAME)
     op.drop_table("config_editing_source_connection", schema=SCHEMA_NAME)
     op.drop_table("config_editing", schema=SCHEMA_NAME)
+    op.execute(sa.schema.DropSequence(sa.Sequence("config_editing_version_seq", schema=SCHEMA_NAME)))
