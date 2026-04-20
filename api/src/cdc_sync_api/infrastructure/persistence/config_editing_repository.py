@@ -3,10 +3,6 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import UTC, datetime
 
-import sqlalchemy as sa
-from sqlalchemy.engine import Engine
-from sqlalchemy.exc import IntegrityError
-
 from cdc_sync_api.application.dto.editing_config_dto import EditingConfigDto
 from cdc_sync_api.application.errors import EditingConfigConflictError
 from cdc_sync_api.infrastructure.persistence.config_editing_storage import (
@@ -18,6 +14,12 @@ from cdc_sync_api.infrastructure.persistence.config_editing_tables import (
     CONFIG_EDITING_ID,
     config_editing,
 )
+from sqlalchemy.engine import Engine
+from sqlalchemy.exc import IntegrityError
+
+import sqlalchemy as sa
+
+CONSISTENT_READ_ISOLATION_LEVEL = "REPEATABLE READ"
 
 
 class SqlAlchemyEditingConfigRepository:
@@ -25,19 +27,25 @@ class SqlAlchemyEditingConfigRepository:
         self._engine = engine
 
     def get(self) -> EditingConfigDto | None:
-        with self._engine.connect() as connection:
-            config_row = connection.execute(
-                sa.select(config_editing.c.updated_at).where(
-                    config_editing.c.id == CONFIG_EDITING_ID
-                )
-            ).mappings().one_or_none()
-            if config_row is None:
-                return None
-
-            return load_editing_config(
-                connection,
-                updated_at=config_row["updated_at"],
+        with self._engine.connect() as raw_connection:
+            connection = raw_connection.execution_options(
+                # Garantiza lectura sobre la misma snapshot aunque se lea
+                # en distintas queries, en la misma transacción.
+                isolation_level=CONSISTENT_READ_ISOLATION_LEVEL
             )
+            with connection.begin():
+                config_row = connection.execute(
+                    sa.select(config_editing.c.updated_at).where(
+                        config_editing.c.id == CONFIG_EDITING_ID
+                    )
+                ).mappings().one_or_none()
+                if config_row is None:
+                    return None
+
+                return load_editing_config(
+                    connection,
+                    updated_at=config_row["updated_at"],
+                )
 
     def save(
         self,
