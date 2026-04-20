@@ -12,6 +12,9 @@ from cdc_sync_api.infrastructure.persistence.config_editing_repository import (
     _build_next_version,
     _raise_conflict_on_concurrent_initial_save,
 )
+from cdc_sync_api.infrastructure.persistence.config_editing_tables import (
+    config_editing_table,
+)
 
 
 def test_initial_save_conflict_maps_integrity_error_to_domain_conflict() -> None:
@@ -54,6 +57,16 @@ def test_build_next_version_starts_at_one_without_previous_row() -> None:
 
 def test_build_next_version_increments_previous_value() -> None:
     assert _build_next_version({"version": 7}) == 8
+
+
+def test_table_source_connection_fk_is_cascade_compatible() -> None:
+    foreign_key_constraint = next(
+        constraint
+        for constraint in config_editing_table.foreign_key_constraints
+        if len(constraint.column_keys) == 2
+    )
+
+    assert foreign_key_constraint.ondelete == "CASCADE"
 
 
 class FakeEngine:

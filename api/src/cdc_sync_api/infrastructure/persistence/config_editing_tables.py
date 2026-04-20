@@ -69,7 +69,7 @@ config_editing_table = sa.Table(
             f"{CONTROL_PLANE_SCHEMA}.config_editing_source_connection.config_id",
             f"{CONTROL_PLANE_SCHEMA}.config_editing_source_connection.name",
         ],
-        ondelete="RESTRICT",
+        ondelete="CASCADE",
     ),
     sa.UniqueConstraint("config_id", "logical_name"),
     sa.UniqueConstraint("config_id", "position"),

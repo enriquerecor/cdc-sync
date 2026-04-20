@@ -74,7 +74,7 @@ def upgrade() -> None:
                 f"{SCHEMA_NAME}.config_editing_source_connection.config_id",
                 f"{SCHEMA_NAME}.config_editing_source_connection.name",
             ],
-            ondelete="RESTRICT",
+            ondelete="CASCADE",
         ),
         sa.UniqueConstraint("config_id", "logical_name"),
         sa.UniqueConstraint("config_id", "position"),
