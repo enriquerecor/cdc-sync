@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from os import getenv
+from urllib.parse import unquote, urlparse
 from uuid import UUID, uuid4
 
 import pytest
@@ -30,7 +31,6 @@ from cdc_sync_api.infrastructure.persistence.control_plane_tables import (
     secret_references,
     worker_config_assignments,
 )
-from cdc_sync_api.shared.settings import Settings
 
 pytestmark = pytest.mark.skipif(
     getenv("API_REPOSITORY_INTEGRATION_TESTS") != "true",
@@ -40,7 +40,7 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture()
 def engine() -> Engine:
-    test_engine = create_engine(Settings().database_url)
+    test_engine = create_engine(_read_test_database_url())
     _prepare_database(test_engine)
     yield test_engine
     test_engine.dispose()
@@ -147,6 +147,22 @@ def _prepare_database(engine: Engine) -> None:
         connection.execute(text(f"CREATE SCHEMA IF NOT EXISTS {CONTROL_PLANE_SCHEMA}"))
 
     control_plane_metadata.create_all(engine)
+
+
+def _read_test_database_url() -> str:
+    database_url = getenv("API_TEST_DATABASE_URL", "").strip()
+    if not database_url:
+        raise RuntimeError(
+            "API_TEST_DATABASE_URL es obligatoria para los tests de integración SQL"
+        )
+
+    database_name = unquote(urlparse(database_url).path).lstrip("/")
+    if "test" in database_name:
+        return database_url
+
+    raise RuntimeError(
+        "API_TEST_DATABASE_URL debe apuntar a una base de datos de test"
+    )
 
 
 def _truncate_control_plane(engine: Engine) -> None:

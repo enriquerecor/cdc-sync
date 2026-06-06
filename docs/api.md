@@ -120,7 +120,7 @@ deben venir del entorno del proceso.
 
 ## Tests mínimos
 
-Ejecutar la verificación básica del `healthcheck`:
+Ejecutar la suite rápida de la API:
 
 ```bash
 make api-test
@@ -128,6 +128,16 @@ make api-test
 
 La imagen runtime de la API instala solo las dependencias de ejecución. Los tests se ejecutan con un stage
 independiente del `Dockerfile` para no arrastrar `pytest` ni utilidades de desarrollo al contenedor del servicio.
+
+Los tests de integración del repositorio SQLAlchemy requieren PostgreSQL real y se ejecutan de forma separada:
+
+```bash
+make api-test-integration
+```
+
+Este objetivo levanta un PostgreSQL efímero en Docker, inyecta `API_TEST_DATABASE_URL` y ejecuta solo los tests de
+integración del repositorio. Esos tests no usan la base normal de la API y fallan de forma explícita si la URL indicada
+no apunta a una base de datos de test.
 
 ## Nota de arquitectura
 
