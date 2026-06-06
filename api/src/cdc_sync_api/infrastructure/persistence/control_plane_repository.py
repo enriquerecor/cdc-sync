@@ -262,7 +262,6 @@ class SqlAlchemyControlPlaneRepository:
             cdc_topic=table_row["cdc_topic"],
             destination_table=table_row["destination_table"],
             enabled=table_row["enabled"],
-            position=table_row["position"],
             primary_key_fields=tuple(row["column_name"] for row in primary_key_rows),
             destination_columns=tuple(
                 DestinationColumn(

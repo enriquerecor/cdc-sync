@@ -204,7 +204,6 @@ class ConfiguredTable:
     primary_key_fields: tuple[str, ...]
     destination_columns: tuple[DestinationColumn, ...]
     enabled: bool = True
-    position: int = 0
 
     def __post_init__(self) -> None:
         _ensure_uuid(self.id, "El id de la tabla configurada")
@@ -244,7 +243,6 @@ class ConfiguredTable:
             tuple(self.destination_columns),
         )
         _ensure_bool(self.enabled, "enabled")
-        _ensure_non_negative_int(self.position, "position")
         _validate_configured_table(self)
 
 
@@ -391,14 +389,6 @@ def _ensure_port(value: int, label: str) -> None:
 
     if value < 1 or value > 65535:
         raise ControlPlaneValidationError(f"{label} debe estar entre 1 y 65535")
-
-
-def _ensure_non_negative_int(value: int, label: str) -> None:
-    if not isinstance(value, int):
-        raise TypeError(f"{label} debe ser entero")
-
-    if value < 0:
-        raise ControlPlaneValidationError(f"{label} no puede ser negativo")
 
 
 def _normalize_text_tuple(values: tuple[str, ...], label: str) -> tuple[str, ...]:
