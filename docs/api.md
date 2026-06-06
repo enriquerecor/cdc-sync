@@ -7,6 +7,7 @@
 - migraciones iniciales con Alembic
 - separación mínima entre dominio, aplicación, HTTP e infraestructura
 - routing base y `healthcheck`
+- API administrativa mínima para workers, conexiones, destinos, configuraciones y asignaciones efectivas
 
 ## Estructura
 
@@ -53,6 +54,49 @@ Resultado esperado:
 - `GET /api/v1` expone el routing base del backend
 - OpenAPI queda disponible en `http://localhost:8000/docs`
 
+## API administrativa
+
+La API administrativa vive bajo `/api/v1` y usa JSON con campos `snake_case`.
+Permite crear, consultar, modificar y eliminar la configuración administrativa del control plane:
+
+- `/api/v1/workers`
+- `/api/v1/source-connections`
+- `/api/v1/destinations`
+- `/api/v1/configs`
+- `/api/v1/workers/{worker_internal_id}/config-assignment`
+
+`configs` se gestionan como agregado completo: una configuración incluye sus tablas, claves primarias y columnas de
+destino. Al actualizar una configuración se reemplaza el agregado completo persistido.
+
+Las conexiones de origen y destinos aceptan credenciales en operaciones de escritura mediante:
+
+```json
+{
+  "credentials": {
+    "user": "cdc_sync",
+    "password": "cdc_sync"
+  }
+}
+```
+
+Las respuestas administrativas no devuelven secretos ni `credentials_secret_id`; solo indican que las credenciales
+están configuradas. Esta decisión mantiene el contrato HTTP separado del detalle interno de persistencia de secretos.
+
+La asignación efectiva se actualiza con:
+
+```http
+PUT /api/v1/workers/{worker_internal_id}/config-assignment
+```
+
+```json
+{
+  "config_id": "00000000-0000-0000-0000-000000000000"
+}
+```
+
+En esta fase, asignar o editar una configuración solo cambia la fuente de verdad administrativa. El worker seguirá
+aplicando cambios tras reinicio manual cuando se implemente el contrato runtime remoto de las siguientes issues.
+
 ## Variables principales
 
 - `API_PORT`
@@ -91,5 +135,5 @@ La API mantiene separadas las capas de dominio, aplicación, HTTP e infraestruct
 plane vive en PostgreSQL bajo el schema `control_plane` y representa workers, conexiones de origen, destinos,
 configuraciones de tablas y asignación efectiva por worker.
 
-Esta fase no expone todavía endpoints administrativos ni el contrato runtime del worker. La documentación del modelo y
-sus límites de MVP está en `docs/control-plane-model.md`.
+Esta fase no expone todavía el contrato runtime del worker. La documentación del modelo y sus límites de MVP está en
+`docs/control-plane-model.md`.

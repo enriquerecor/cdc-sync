@@ -2,4 +2,4 @@
 
 Backend FastAPI del control plane de `cdc-sync`.
 
-Expone la futura API de gestión y prepara la persistencia propia del control plane en PostgreSQL.
+Expone la API administrativa de gestión y usa PostgreSQL como persistencia propia del control plane.
