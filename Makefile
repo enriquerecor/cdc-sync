@@ -7,6 +7,8 @@ WORKER_TEST_VENV_DIR := .venv
 WORKER_TEST_VENV_PYTHON := $(WORKER_TEST_VENV_DIR)/bin/python
 WORKER_TEST_VENV_STAMP := $(WORKER_TEST_VENV_DIR)/.worker-test-installed
 POSTGRES_CONNECTOR_TEMPLATE := infrastructure/debezium/connectors/postgresql/source.config.template.json
+POSTGRES_CONNECTOR_ENV_TEMPLATE := infrastructure/debezium/connectors/postgresql/source.local.env.example
+POSTGRES_CONNECTOR_ENV_FILE := infrastructure/debezium/connectors/generated/postgresql-source.local.env
 POSTGRES_CONNECTOR_OUTPUT := infrastructure/debezium/connectors/generated/postgresql-source.local.json
 E2E_VALIDATE_SCRIPT := infrastructure/e2e/validate-local.sh
 CONNECT_RETRY_ATTEMPTS ?= 15
@@ -15,6 +17,13 @@ CONNECT_RETRY_DELAY_SECONDS ?= 2
 define require_env_file
 	@if [[ ! -f "$(ENV_FILE)" ]]; then \
 		echo "No existe $(ENV_FILE). Ejecuta 'make env-init' antes de continuar." >&2; \
+		exit 1; \
+	fi
+endef
+
+define require_postgres_connector_env_file
+	@if [[ ! -f "$(POSTGRES_CONNECTOR_ENV_FILE)" ]]; then \
+		echo "No existe $(POSTGRES_CONNECTOR_ENV_FILE). Ejecuta 'make env-init' antes de continuar." >&2; \
 		exit 1; \
 	fi
 endef
@@ -50,6 +59,13 @@ env-init:
 	else \
 		cp "$(WORKER_TABLE_CONFIG_TEMPLATE)" "$(WORKER_TABLE_CONFIG_OUTPUT)"; \
 		echo "$(WORKER_TABLE_CONFIG_OUTPUT) creado a partir de $(WORKER_TABLE_CONFIG_TEMPLATE)"; \
+	fi
+	@if [[ -f "$(POSTGRES_CONNECTOR_ENV_FILE)" ]]; then \
+		echo "$(POSTGRES_CONNECTOR_ENV_FILE) ya existe. No se sobrescribe."; \
+	else \
+		mkdir -p "$$(dirname "$(POSTGRES_CONNECTOR_ENV_FILE)")"; \
+		cp "$(POSTGRES_CONNECTOR_ENV_TEMPLATE)" "$(POSTGRES_CONNECTOR_ENV_FILE)"; \
+		echo "$(POSTGRES_CONNECTOR_ENV_FILE) creado a partir de $(POSTGRES_CONNECTOR_ENV_TEMPLATE)"; \
 	fi
 
 api-up:
@@ -89,16 +105,17 @@ $(WORKER_TEST_VENV_STAMP): worker/requirements.txt worker/requirements-dev.txt |
 	@touch "$(WORKER_TEST_VENV_STAMP)"
 
 debezium-postgres-render:
-	$(require_env_file)
+	$(require_postgres_connector_env_file)
 	@./infrastructure/debezium/connectors/render-template.sh \
 		"$(POSTGRES_CONNECTOR_TEMPLATE)" \
 		"$(POSTGRES_CONNECTOR_OUTPUT)" \
-		"$(ENV_FILE)"
-	@echo "Configuracion renderizada en $(POSTGRES_CONNECTOR_OUTPUT)"
+		"$(POSTGRES_CONNECTOR_ENV_FILE)"
+	@echo "Configuración renderizada en $(POSTGRES_CONNECTOR_OUTPUT)"
 
 debezium-postgres-apply: debezium-postgres-render
 	$(require_env_file)
-	@set -a; source "$(ENV_FILE)"; set +a; \
+	$(require_postgres_connector_env_file)
+	@set -a; source "$(ENV_FILE)"; source "$(POSTGRES_CONNECTOR_ENV_FILE)"; set +a; \
 	attempt=1; \
 	while [[ $$attempt -le $(CONNECT_RETRY_ATTEMPTS) ]]; do \
 		if curl -fsS -X PUT "http://localhost:$${CONNECT_PORT}/connectors/$${DEBEZIUM_POSTGRES_CONNECTOR_NAME}/config" \
@@ -116,7 +133,8 @@ debezium-postgres-apply: debezium-postgres-render
 
 debezium-postgres-status:
 	$(require_env_file)
-	@set -a; source "$(ENV_FILE)"; set +a; \
+	$(require_postgres_connector_env_file)
+	@set -a; source "$(ENV_FILE)"; source "$(POSTGRES_CONNECTOR_ENV_FILE)"; set +a; \
 	attempt=1; \
 	while [[ $$attempt -le $(CONNECT_RETRY_ATTEMPTS) ]]; do \
 		if curl -fsS "http://localhost:$${CONNECT_PORT}/connectors/$${DEBEZIUM_POSTGRES_CONNECTOR_NAME}/status"; then \
