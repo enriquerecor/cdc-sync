@@ -5,13 +5,18 @@ from fastapi import APIRouter, Depends, Response, status
 from cdc_sync_api.application.use_cases.manage_control_plane import (
     ManageControlPlaneUseCase,
 )
+from cdc_sync_api.application.use_cases.materialize_cdc_connector import (
+    MaterializeCdcConnectorUseCase,
+)
 from cdc_sync_api.entrypoints.http.dependencies import (
     get_control_plane_admin_use_case,
+    get_materialize_cdc_connector_use_case,
 )
 from cdc_sync_api.entrypoints.http.routes.control_plane_admin_errors import (
     execute_admin_operation,
 )
 from cdc_sync_api.entrypoints.http.schemas.control_plane_admin import (
+    CdcConnectorMaterializationResponse,
     DestinationCreateRequest,
     DestinationResponse,
     DestinationUpdateRequest,
@@ -82,6 +87,22 @@ def update_source_connection(
         )
     )
     return SourceConnectionResponse.from_domain(source_connection)
+
+
+@router.put(
+    "/source-connections/{source_connection_id}/cdc-connector",
+    response_model=CdcConnectorMaterializationResponse,
+)
+def materialize_source_cdc_connector(
+    source_connection_id: UUID,
+    use_case: MaterializeCdcConnectorUseCase = Depends(
+        get_materialize_cdc_connector_use_case
+    ),
+) -> CdcConnectorMaterializationResponse:
+    materialized_connector = execute_admin_operation(
+        lambda: use_case.materialize_source_connector(source_connection_id)
+    )
+    return CdcConnectorMaterializationResponse.from_dto(materialized_connector)
 
 
 @router.delete(

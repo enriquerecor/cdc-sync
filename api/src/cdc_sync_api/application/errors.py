@@ -4,3 +4,7 @@ class ControlPlaneConflictError(RuntimeError):
 
 class ControlPlaneNotFoundError(RuntimeError):
     """La entidad administrativa solicitada no existe."""
+
+
+class KafkaConnectRequestError(RuntimeError):
+    """Kafka Connect no ha podido materializar la configuración indicada."""
