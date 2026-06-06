@@ -25,7 +25,7 @@ def upgrade() -> None:
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("name", sa.String(length=120), nullable=False),
         sa.Column("provider", sa.String(length=40), nullable=False),
-        sa.Column("inline_payload", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column("inline_payload", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("external_reference", sa.String(length=512), nullable=True),
         sa.Column(
             "created_at",
@@ -48,7 +48,9 @@ def upgrade() -> None:
             name="ck_secret_references_provider",
         ),
         sa.CheckConstraint(
-            "jsonb_typeof(inline_payload) = 'object' AND inline_payload <> '{}'::jsonb",
+            "inline_payload IS NOT NULL "
+            "AND jsonb_typeof(inline_payload) = 'object' "
+            "AND inline_payload <> '{}'::jsonb",
             name="ck_secret_references_inline_payload",
         ),
         sa.PrimaryKeyConstraint("id"),

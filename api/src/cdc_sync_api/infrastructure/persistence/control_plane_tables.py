@@ -46,13 +46,15 @@ secret_references = Table(
     _uuid_column("id", primary_key=True),
     Column("name", String(120), nullable=False),
     Column("provider", String(40), nullable=False),
-    Column("inline_payload", JSONB, nullable=True),
+    Column("inline_payload", JSONB, nullable=False),
     Column("external_reference", String(512), nullable=True),
     *_timestamps(),
     CheckConstraint("length(btrim(name)) > 0", name="ck_secret_references_name"),
     CheckConstraint("provider = 'inline'", name="ck_secret_references_provider"),
     CheckConstraint(
-        "jsonb_typeof(inline_payload) = 'object' AND inline_payload <> '{}'::jsonb",
+        "inline_payload IS NOT NULL "
+        "AND jsonb_typeof(inline_payload) = 'object' "
+        "AND inline_payload <> '{}'::jsonb",
         name="ck_secret_references_inline_payload",
     ),
     UniqueConstraint("name", name="uq_secret_references_name"),

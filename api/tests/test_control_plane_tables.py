@@ -57,6 +57,8 @@ def test_inline_secret_payload_constraint_rejects_empty_objects() -> None:
         "ck_secret_references_inline_payload",
     )
 
+    assert secret_references.c.inline_payload.nullable is False
+    assert "inline_payload IS NOT NULL" in str(constraint.sqltext)
     assert "inline_payload <> '{}'::jsonb" in str(constraint.sqltext)
 
 
