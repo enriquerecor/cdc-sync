@@ -79,6 +79,9 @@ independiente del `Dockerfile` para no arrastrar `pytest` ni utilidades de desar
 
 ## Nota de arquitectura
 
-En esta fase no existe todavía lógica funcional de configuración. La base técnica queda preparada para que `#17`
-introduzca el modelo de configuración en edición y para que `#18` publique la configuración activa del worker sin
-acoplar el contrato externo a la persistencia interna del backend.
+La API mantiene separadas las capas de dominio, aplicación, HTTP e infraestructura. El modelo persistente del control
+plane vive en PostgreSQL bajo el schema `control_plane` y representa workers, conexiones de origen, destinos,
+configuraciones de tablas y asignación efectiva por worker.
+
+Esta fase no expone todavía endpoints administrativos ni el contrato runtime del worker. La documentación del modelo y
+sus límites de MVP está en `docs/control-plane-model.md`.
