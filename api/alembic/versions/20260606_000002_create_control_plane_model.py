@@ -48,7 +48,7 @@ def upgrade() -> None:
             name="ck_secret_references_provider",
         ),
         sa.CheckConstraint(
-            "inline_payload IS NOT NULL",
+            "jsonb_typeof(inline_payload) = 'object' AND inline_payload <> '{}'::jsonb",
             name="ck_secret_references_inline_payload",
         ),
         sa.PrimaryKeyConstraint("id"),

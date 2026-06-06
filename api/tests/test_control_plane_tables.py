@@ -51,6 +51,15 @@ def test_mvp_type_constraints_are_explicit() -> None:
     )
 
 
+def test_inline_secret_payload_constraint_rejects_empty_objects() -> None:
+    constraint = _constraint_by_name(
+        secret_references,
+        "ck_secret_references_inline_payload",
+    )
+
+    assert "inline_payload <> '{}'::jsonb" in str(constraint.sqltext)
+
+
 def test_config_tables_prevent_ambiguous_config_entries() -> None:
     unique_constraints = _constraint_names(config_tables, UniqueConstraint)
 
@@ -79,6 +88,14 @@ def _constraint_names(table, constraint_type: type) -> set[str]:
         for constraint in table.constraints
         if isinstance(constraint, constraint_type) and constraint.name is not None
     }
+
+
+def _constraint_by_name(table, constraint_name: str) -> CheckConstraint:
+    for constraint in table.constraints:
+        if isinstance(constraint, CheckConstraint) and constraint.name == constraint_name:
+            return constraint
+
+    raise AssertionError(f"No existe la constraint {constraint_name}")
 
 
 def _foreign_key_targets(table) -> set[str]:
