@@ -24,6 +24,23 @@ class SecretPersistenceMixin:
         except IntegrityError as exc:
             raise_conflict("El secreto indicado ya existe o no es válido", exc)
 
+    def get_secret_reference(self, secret_id: UUID) -> SecretReference | None:
+        with self._engine.begin() as connection:
+            row = connection.execute(
+                select(secret_references).where(secret_references.c.id == secret_id)
+            ).mappings().first()
+
+        if row is None:
+            return None
+
+        return SecretReference(
+            id=row["id"],
+            name=row["name"],
+            provider=row["provider"],
+            inline_payload=row["inline_payload"],
+            external_reference=row["external_reference"],
+        )
+
     def _insert_secret_reference(
         self,
         connection,
