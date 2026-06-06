@@ -85,9 +85,9 @@ El orden recomendado para las issues actuales es:
 Las issues posteriores de observabilidad, consultas temporales, cambios de esquema o coordinación avanzada deben quedar
 fuera de esta primera vertical, salvo que sean imprescindibles para desbloquear el flujo anterior.
 
-## Restricciones para completarlo en 1-2 días con Codex
+## Restricciones para completarlo 
 
-Para que el MVP sea programable en 1-2 días laborables con ayuda de Codex, el alcance debe ser estricto:
+Para que el MVP sea programable el alcance debe ser estricto:
 
 - soportar solo PostgreSQL como origen inicial;
 - soportar solo ClickHouse como destino inicial;
