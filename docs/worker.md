@@ -10,23 +10,28 @@
 
 ## Arranque
 
-Preparar la configuracion local del worker:
+Preparar la configuración local del worker:
 
 ```bash
 make env-init
 ```
 
-Esto crea `worker/config/tables.json` a partir de `worker/config/tables.example.json` si todavia no existe.
+Esto crea `worker/config/tables.json` a partir de `worker/config/tables.example.json` si todavía no existe.
 
-El fichero real de configuracion del entorno no se versiona. El ejemplo versionado define el contrato base esperado
-por el worker.
+El worker arranca ya con un contrato técnico propio:
 
-Contrato minimo actual:
+- `WORKER_ID`
+- `WORKER_CONTROL_PLANE_BASE_URL`
+
+La petición real a `GET /workers/{id}/config` queda fuera de esta fase. Hasta #28, el JSON local y las variables de
+ClickHouse se mantienen como fixture de desarrollo para no romper la validación extremo a extremo.
+
+Contrato mínimo actual del fixture de tablas:
 
 - `version`
 - `tables`
 
-Configuracion global de destino actual:
+Configuración global temporal de destino:
 
 - `WORKER_CLICKHOUSE_HOST`
 - `WORKER_CLICKHOUSE_PORT`
@@ -51,10 +56,10 @@ WORKER_CLICKHOUSE_USER=<usuario>
 WORKER_CLICKHOUSE_PASSWORD=<password>
 ```
 
-Si se detecta una combinacion sospechosa entre puerto y TLS, el worker emitira un `warning`
-para facilitar la deteccion de configuraciones incoherentes sin bloquear despliegues custom.
+Si se detecta una combinación sospechosa entre puerto y TLS, el worker emitirá un `warning`
+para facilitar la detección de configuraciones incoherentes sin bloquear despliegues custom.
 
-Contrato minimo actual por tabla:
+Contrato mínimo actual por tabla:
 
 - `enabled`
 - `source.adapter`
@@ -74,9 +79,9 @@ Restricciones de `destination.columns`:
 
 - debe incluir todas las columnas de PK declaradas en `pk`
 - las columnas de PK no pueden ser `nullable`
-- no se pueden declarar las columnas tecnicas `version` y `deleted`; las anadira el sistema
-- si una columna no declara `nullable`, heredara `destination.default_nullable`
-- si tampoco existe `destination.default_nullable`, la nulabilidad efectiva sera `false`
+- no se pueden declarar las columnas técnicas `version` y `deleted`; las añadirá el sistema
+- si una columna no declara `nullable`, heredará `destination.default_nullable`
+- si tampoco existe `destination.default_nullable`, la nulabilidad efectiva será `false`
 
 Arrancar el servicio:
 
@@ -92,6 +97,8 @@ Topics por defecto:
 Los topics se derivan del fichero de tablas mediante `source.topic`.
 El adapter usado para cada tabla se declara en `source.adapter`.
 La ruta del fichero de tablas se configura mediante `WORKER_TABLE_CONFIG_PATH` en `.env`.
+En esta fase esa ruta no debe interpretarse como fuente de verdad del MVP, sino como compatibilidad local hasta la carga
+remota desde el control plane.
 
 ## Contrato normalizado
 
@@ -114,7 +121,7 @@ Semantica actual:
 - para Debezium PostgreSQL, `version` se resuelve de forma estricta desde `payload.source.lsn`
 - para Debezium PostgreSQL, `source_position` se expone como `{"lsn": <valor>}`
 - `missing` y `null` no son equivalentes: un upsert debe incluir todas las columnas configuradas en destino
-- los deletes logicos se materializan con PK + columnas tecnicas; el flag `deleted` marca el borrado
+- los deletes lógicos se materializan con PK + columnas técnicas; el flag `deleted` marca el borrado
 - cuando una columna no PK es `nullable=false`, ClickHouse materializa su valor por defecto en el delete logico porque esa columna no se inserta en la fila de borrado
 
 ## Validaciones
@@ -133,7 +140,7 @@ docker compose logs -f worker
 
 Resultado esperado al arrancar:
 
-- aparece una línea `worker_started`
+- aparece una línea `worker_started` con `worker_id` y `control_plane_base_url`
 - aparece una línea `clickhouse_schema_ready`
 
 ## Tests

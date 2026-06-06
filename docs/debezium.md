@@ -38,6 +38,15 @@ La plantilla versionada está en:
 infrastructure/debezium/connectors/postgresql/source.config.template.json
 ```
 
+Las variables locales del conector viven en:
+
+```bash
+infrastructure/debezium/connectors/generated/postgresql-source.local.env
+```
+
+`make env-init` lo crea desde `infrastructure/debezium/connectors/postgresql/source.local.env.example`.
+Es un fixture temporal para el stack local; la materialización desde el control plane queda para #27.
+
 Renderizar configuración local:
 
 ```bash
