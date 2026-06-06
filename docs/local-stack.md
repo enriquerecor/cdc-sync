@@ -27,8 +27,9 @@ Este comando crea, sin sobrescribir si ya existen:
 - `worker/config/tables.json`, fixture temporal del worker local;
 - `infrastructure/debezium/connectors/generated/postgresql-source.local.env`, fixture temporal del conector Debezium.
 
-La configuración funcional del MVP debe vivir en el control plane. Estos fixtures solo mantienen operativa la demo local
-hasta completar la gestión administrativa, Kafka Connect desde API y la carga remota del worker.
+La configuración funcional del MVP debe vivir en el control plane. El fixture del conector sigue alimentando la
+validación e2e actual y la depuración local; el JSON del worker mantiene operativa la demo local hasta completar la
+carga remota del worker.
 
 Ejecutar la validación e2e reproducible:
 

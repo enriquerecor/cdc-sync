@@ -3,7 +3,8 @@
 ## Alcance en esta fase
 
 - servicio base de Kafka Connect con imagen de Debezium
-- conector PostgreSQL configurable por plantilla
+- materialización canónica desde el control plane mediante adapter Debezium PostgreSQL
+- conector PostgreSQL configurable por plantilla solo como fixture local de depuración
 - captura de cambios de `public.customers` y `public.orders`
 
 ## Arranque de Connect
@@ -30,7 +31,27 @@ Comprobar plugins disponibles:
 curl -fsS http://localhost:8083/connector-plugins
 ```
 
-## Flujo del conector PostgreSQL
+## Flujo desde el control plane
+
+La forma canónica de crear o actualizar conectores CDC en el MVP es llamar a la API administrativa del control plane:
+
+```bash
+curl -fsS -X PUT \
+  http://localhost:8000/api/v1/source-connections/<source_connection_id>/cdc-connector
+```
+
+La API:
+
+- lee la conexión de origen y sus credenciales desde PostgreSQL del control plane;
+- selecciona un compilador por `source_type`;
+- usa `DebeziumPostgresConnectorCompiler` para `source_type = postgresql`;
+- une las tablas habilitadas de configs habilitadas que usan ese origen;
+- aplica la configuración en Kafka Connect con `PUT /connectors/<name>/config`.
+
+PostgreSQL es el primer adapter Debezium implementado, no una dependencia del caso de uso. En futuras fases se podrán
+añadir compiladores para MySQL u otros orígenes OLTP sin cambiar el flujo administrativo.
+
+## Fixture local del conector PostgreSQL
 
 La plantilla versionada está en:
 
@@ -45,7 +66,8 @@ infrastructure/debezium/connectors/generated/postgresql-source.local.env
 ```
 
 `make env-init` lo crea desde `infrastructure/debezium/connectors/postgresql/source.local.env.example`.
-Es un fixture temporal para el stack local; la materialización desde el control plane queda para #27.
+Es un fixture temporal para la validación e2e actual y para depuración local; no es la fuente de verdad funcional del
+MVP.
 
 Renderizar configuración local:
 
