@@ -54,6 +54,33 @@ make api-health
 
 La documentación detallada del backend está en [docs/api.md](docs/api.md).
 
+## Frontend administrativo
+
+La base del frontend vive en `frontend/` y usa Vite, React, TypeScript y Mantine para la UI administrativa mínima del
+control plane.
+
+Flujo local con npm:
+
+```bash
+make env-init
+make api-up
+make api-migrate
+make frontend-install
+make frontend-api-types
+make frontend-dev
+```
+
+Flujo local con Docker Compose:
+
+```bash
+make env-init
+make frontend-up
+make frontend-logs
+```
+
+El servicio está integrado en el stack local y puede arrancarse con `docker compose up frontend` o junto al resto del
+stack. La documentación detallada está en [frontend/README.md](frontend/README.md).
+
 La demo e2e local levanta la vertical multi-worker desde configuración API:
 
 ```bash

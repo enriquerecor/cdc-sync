@@ -233,6 +233,7 @@ devuelve `422`. Si Kafka Connect no está disponible o rechaza la configuración
 - `API_WORKER_KAFKA_CLIENT_ID_PREFIX`
 - `API_WORKER_KAFKA_AUTO_OFFSET_RESET`
 - `API_WORKER_KAFKA_POLL_TIMEOUT_MS`
+- `API_CORS_ALLOWED_ORIGINS`
 - `CONTROL_PLANE_POSTGRES_DB`
 - `CONTROL_PLANE_POSTGRES_USER`
 - `CONTROL_PLANE_POSTGRES_PASSWORD`
@@ -247,6 +248,9 @@ devuelve `422`. Si Kafka Connect no está disponible o rechaza la configuración
 En Docker, `API_DATABASE_HOST`, `API_DATABASE_PORT`, `API_DATABASE_NAME`, `API_DATABASE_USER` y
 `API_DATABASE_PASSWORD` se inyectan con valores internos del stack. En ejecución local fuera de Docker, esos valores
 deben venir del entorno del proceso.
+
+`API_CORS_ALLOWED_ORIGINS` acepta una lista separada por comas con los orígenes permitidos para el frontend local. El
+valor por defecto del entorno local permite `http://localhost:5173` y `http://127.0.0.1:5173`.
 
 ## Tests mínimos
 
