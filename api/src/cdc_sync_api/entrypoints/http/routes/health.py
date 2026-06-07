@@ -12,7 +12,17 @@ router = APIRouter(tags=["system"])
 
 
 class HealthResponse(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(
+        frozen=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "status": "ok",
+                    "checks": {"database": "ok"},
+                }
+            ]
+        },
+    )
 
     status: str
     checks: dict[str, str]
@@ -25,7 +35,14 @@ class HealthResponse(BaseModel):
         )
 
 
-@router.get("/health", response_model=HealthResponse)
+@router.get(
+    "/health",
+    response_model=HealthResponse,
+    summary="Comprobar salud",
+    description="Valida que la API y sus dependencias críticas están disponibles.",
+    response_description="Estado de salud de la API.",
+    responses={503: {"description": "Alguna dependencia crítica no está disponible."}},
+)
 def health(
     use_case: CheckHealthUseCase = Depends(get_health_use_case),
 ) -> HealthResponse:

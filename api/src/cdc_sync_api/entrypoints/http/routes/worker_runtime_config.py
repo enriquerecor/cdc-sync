@@ -16,7 +16,21 @@ from cdc_sync_api.entrypoints.http.schemas.worker_runtime_config import (
 router = APIRouter(prefix="/workers", tags=["worker-runtime"])
 
 
-@router.get("/{worker_id}/config", response_model=WorkerRuntimeConfigResponse)
+@router.get(
+    "/{worker_id}/config",
+    response_model=WorkerRuntimeConfigResponse,
+    summary="Obtener configuración runtime",
+    description=(
+        "Devuelve el contrato runtime estable que consume un worker al "
+        "arrancar con WORKER_ID. El identificador de ruta es operativo, no "
+        "el UUID interno administrativo."
+    ),
+    response_description="Contrato runtime compilado para el worker.",
+    responses={
+        404: {"description": "Worker inexistente o sin configuración efectiva."},
+        422: {"description": "Configuración efectiva incompatible con el runtime."},
+    },
+)
 def get_worker_runtime_config(
     worker_id: str,
     use_case: GetWorkerRuntimeConfigUseCase = Depends(

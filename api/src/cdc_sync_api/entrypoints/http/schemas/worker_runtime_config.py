@@ -15,9 +15,77 @@ from cdc_sync_api.application.dto.worker_runtime_config_dto import (
     WorkerRuntimeConfigDto,
 )
 
+RUNTIME_WORKER_EXAMPLE = {
+    "worker_id": "local-worker",
+}
+RUNTIME_KAFKA_EXAMPLE = {
+    "bootstrap_servers": "kafka:29092",
+    "client_id": "cdc-sync-worker-local-worker",
+    "group_id": "cdc-sync-worker-local-worker",
+    "auto_offset_reset": "earliest",
+    "poll_timeout_ms": 1000,
+    "topics": ["cdc_sync.public.customers"],
+}
+RUNTIME_DESTINATION_CREDENTIALS_EXAMPLE = {
+    "user": "cdc_sync",
+    "password": "cdc_sync",
+}
+RUNTIME_DESTINATION_EXAMPLE = {
+    "adapter": "clickhouse",
+    "host": "clickhouse",
+    "port": 9000,
+    "secure": False,
+    "database": "cdc_sync_analytics",
+    "credentials": RUNTIME_DESTINATION_CREDENTIALS_EXAMPLE,
+}
+RUNTIME_TABLE_SOURCE_EXAMPLE = {
+    "adapter": "debezium_postgres",
+    "schema": "public",
+    "table": "customers",
+    "topic": "cdc_sync.public.customers",
+}
+RUNTIME_TABLE_SYNC_EXAMPLE = {
+    "mode": "realtime",
+}
+RUNTIME_DESTINATION_COLUMN_EXAMPLE = {
+    "name": "id",
+    "type": "UInt64",
+    "nullable": False,
+}
+RUNTIME_TABLE_DESTINATION_EXAMPLE = {
+    "table": "customers",
+    "columns": [
+        RUNTIME_DESTINATION_COLUMN_EXAMPLE,
+        {
+            "name": "email",
+            "type": "String",
+            "nullable": True,
+        },
+    ],
+}
+RUNTIME_TABLE_EXAMPLE = {
+    "enabled": True,
+    "source": RUNTIME_TABLE_SOURCE_EXAMPLE,
+    "pk": ["id"],
+    "sync": RUNTIME_TABLE_SYNC_EXAMPLE,
+    "destination": RUNTIME_TABLE_DESTINATION_EXAMPLE,
+}
+WORKER_RUNTIME_CONFIG_EXAMPLE = {
+    "contract_version": 1,
+    "worker": RUNTIME_WORKER_EXAMPLE,
+    "kafka": RUNTIME_KAFKA_EXAMPLE,
+    "destination": RUNTIME_DESTINATION_EXAMPLE,
+    "tables": {
+        "customers": RUNTIME_TABLE_EXAMPLE,
+    },
+}
+
 
 class RuntimeWorkerResponse(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(
+        frozen=True,
+        json_schema_extra={"examples": [RUNTIME_WORKER_EXAMPLE]},
+    )
 
     worker_id: str
 
@@ -27,7 +95,10 @@ class RuntimeWorkerResponse(BaseModel):
 
 
 class RuntimeKafkaResponse(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(
+        frozen=True,
+        json_schema_extra={"examples": [RUNTIME_KAFKA_EXAMPLE]},
+    )
 
     bootstrap_servers: str
     client_id: str
@@ -49,7 +120,10 @@ class RuntimeKafkaResponse(BaseModel):
 
 
 class RuntimeDestinationCredentialsResponse(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(
+        frozen=True,
+        json_schema_extra={"examples": [RUNTIME_DESTINATION_CREDENTIALS_EXAMPLE]},
+    )
 
     user: str
     password: str
@@ -63,7 +137,10 @@ class RuntimeDestinationCredentialsResponse(BaseModel):
 
 
 class RuntimeDestinationResponse(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(
+        frozen=True,
+        json_schema_extra={"examples": [RUNTIME_DESTINATION_EXAMPLE]},
+    )
 
     adapter: str
     host: str
@@ -87,7 +164,10 @@ class RuntimeDestinationResponse(BaseModel):
 
 
 class RuntimeTableSourceResponse(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(
+        frozen=True,
+        json_schema_extra={"examples": [RUNTIME_TABLE_SOURCE_EXAMPLE]},
+    )
 
     adapter: str
     source_schema: str = Field(serialization_alias="schema")
@@ -105,7 +185,10 @@ class RuntimeTableSourceResponse(BaseModel):
 
 
 class RuntimeTableSyncResponse(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(
+        frozen=True,
+        json_schema_extra={"examples": [RUNTIME_TABLE_SYNC_EXAMPLE]},
+    )
 
     mode: str
 
@@ -115,7 +198,10 @@ class RuntimeTableSyncResponse(BaseModel):
 
 
 class RuntimeDestinationColumnResponse(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(
+        frozen=True,
+        json_schema_extra={"examples": [RUNTIME_DESTINATION_COLUMN_EXAMPLE]},
+    )
 
     name: str
     type: str
@@ -134,7 +220,10 @@ class RuntimeDestinationColumnResponse(BaseModel):
 
 
 class RuntimeTableDestinationResponse(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(
+        frozen=True,
+        json_schema_extra={"examples": [RUNTIME_TABLE_DESTINATION_EXAMPLE]},
+    )
 
     table: str
     columns: tuple[RuntimeDestinationColumnResponse, ...]
@@ -154,7 +243,10 @@ class RuntimeTableDestinationResponse(BaseModel):
 
 
 class RuntimeTableResponse(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(
+        frozen=True,
+        json_schema_extra={"examples": [RUNTIME_TABLE_EXAMPLE]},
+    )
 
     enabled: bool
     source: RuntimeTableSourceResponse
@@ -174,7 +266,10 @@ class RuntimeTableResponse(BaseModel):
 
 
 class WorkerRuntimeConfigResponse(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(
+        frozen=True,
+        json_schema_extra={"examples": [WORKER_RUNTIME_CONFIG_EXAMPLE]},
+    )
 
     contract_version: int
     worker: RuntimeWorkerResponse
