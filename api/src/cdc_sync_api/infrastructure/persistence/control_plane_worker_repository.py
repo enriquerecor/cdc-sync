@@ -64,6 +64,7 @@ class WorkerPersistenceMixin:
                         worker_id=worker.worker_id,
                         name=worker.name,
                         description=worker.description,
+                        kafka_group_id=worker.kafka_group_id,
                         enabled=worker.enabled,
                         updated_at=func.now(),
                     )

@@ -148,6 +148,22 @@ def test_upserts_one_effective_config_assignment_per_worker(
     assert _assignment_count(engine) == 1
 
 
+def test_persists_worker_with_explicit_kafka_group_id(
+    repository: SqlAlchemyControlPlaneRepository,
+) -> None:
+    worker = Worker(
+        id=uuid4(),
+        worker_id="worker-explicit-group",
+        name="Worker con grupo explícito",
+        kafka_group_id="cdc-sync-worker-explicit",
+    )
+
+    repository.save_worker(worker)
+
+    assert repository.get_worker(worker.id) == worker
+    assert repository.get_worker_by_identifier(worker.worker_id) == worker
+
+
 def _prepare_database(engine: Engine) -> None:
     with engine.begin() as connection:
         connection.execute(text(f"CREATE SCHEMA IF NOT EXISTS {CONTROL_PLANE_SCHEMA}"))

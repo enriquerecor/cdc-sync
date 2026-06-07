@@ -195,6 +195,33 @@ def test_rejects_unsupported_mvp_modes() -> None:
         )
 
 
+def test_worker_accepts_optional_kafka_group_id() -> None:
+    worker_without_group = Worker(
+        id=uuid4(),
+        worker_id="worker-without-group",
+        name="Worker sin grupo explícito",
+    )
+    worker_with_group = Worker(
+        id=uuid4(),
+        worker_id="worker-with-group",
+        name="Worker con grupo explícito",
+        kafka_group_id=" custom-group ",
+    )
+
+    assert worker_without_group.kafka_group_id is None
+    assert worker_with_group.kafka_group_id == "custom-group"
+
+
+def test_worker_rejects_empty_kafka_group_id() -> None:
+    with pytest.raises(ControlPlaneValidationError, match="kafka_group_id"):
+        Worker(
+            id=uuid4(),
+            worker_id="worker-empty-group",
+            name="Worker grupo vacío",
+            kafka_group_id=" ",
+        )
+
+
 def _build_configured_table(
     *,
     logical_name: str = "customers",

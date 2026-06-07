@@ -54,6 +54,7 @@ class WorkerRequest(BaseModel):
     worker_id: NonEmptyStr
     name: NonEmptyStr
     description: str | None = None
+    kafka_group_id: NonEmptyStr | None = None
     enabled: StrictBool = True
 
     def to_dto(self) -> WorkerRequestDto:
@@ -61,6 +62,7 @@ class WorkerRequest(BaseModel):
             worker_id=self.worker_id,
             name=self.name,
             description=self.description,
+            kafka_group_id=self.kafka_group_id,
             enabled=self.enabled,
         )
 
@@ -72,6 +74,7 @@ class WorkerResponse(BaseModel):
     worker_id: str
     name: str
     description: str | None
+    kafka_group_id: str | None
     enabled: bool
 
     @classmethod
@@ -81,6 +84,7 @@ class WorkerResponse(BaseModel):
             worker_id=worker.worker_id,
             name=worker.name,
             description=worker.description,
+            kafka_group_id=worker.kafka_group_id,
             enabled=worker.enabled,
         )
 

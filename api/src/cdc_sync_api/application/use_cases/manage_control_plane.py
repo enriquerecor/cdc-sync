@@ -47,6 +47,7 @@ class ManageControlPlaneUseCase:
             worker_id=request.worker_id,
             name=request.name,
             description=request.description,
+            kafka_group_id=request.kafka_group_id,
             enabled=request.enabled,
         )
         self._repository.save_worker(worker)
@@ -61,6 +62,7 @@ class ManageControlPlaneUseCase:
             worker_id=request.worker_id,
             name=request.name,
             description=request.description,
+            kafka_group_id=request.kafka_group_id,
             enabled=request.enabled,
         )
 

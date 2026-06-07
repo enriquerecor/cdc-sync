@@ -67,10 +67,16 @@ workers = Table(
     Column("worker_id", String(120), nullable=False),
     Column("name", String(160), nullable=False),
     Column("description", Text, nullable=True),
+    Column("kafka_group_id", String(160), nullable=True),
     Column("enabled", Boolean, nullable=False, server_default="true"),
     *_timestamps(),
     CheckConstraint("length(btrim(worker_id)) > 0", name="ck_workers_worker_id"),
     CheckConstraint("length(btrim(name)) > 0", name="ck_workers_name"),
+    CheckConstraint(
+        "kafka_group_id IS NULL OR length(btrim(kafka_group_id)) > 0",
+        name="ck_workers_kafka_group_id",
+    ),
+    UniqueConstraint("kafka_group_id", name="uq_workers_kafka_group_id"),
     UniqueConstraint("worker_id", name="uq_workers_worker_id"),
 )
 
