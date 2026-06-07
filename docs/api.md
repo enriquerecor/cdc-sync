@@ -52,8 +52,33 @@ make api-health
 Resultado esperado:
 
 - `GET /health` responde `200 OK` con el estado del servicio y de la base de datos
-- `GET /api/v1` expone el routing base del backend
+- `GET /api/v1` expone el routing base y las URLs de documentación del backend
 - OpenAPI queda disponible en `http://localhost:8000/docs`
+
+## OpenAPI y Postman
+
+FastAPI genera el contrato OpenAPI a partir de las rutas y schemas HTTP. El repositorio no versiona un
+`openapi.json` estático para evitar divergencias con el código.
+
+Con la API levantada, se puede inspeccionar el contrato en:
+
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
+- OpenAPI JSON: `http://localhost:8000/openapi.json`
+
+Swagger UI permite probar los endpoints principales desde el navegador. El JSON de OpenAPI puede importarse en Postman
+usando la opción de importar desde URL y pegando:
+
+```text
+http://localhost:8000/openapi.json
+```
+
+Postman puede generar una colección a partir de esa especificación para explorar o ejecutar peticiones contra la API
+local. Esta colección no se versiona en el repositorio en esta fase: debe generarse desde el contrato actual cuando se
+quiera revisar o demostrar la API. Los tests automatizados del proyecto siguen viviendo en `pytest`.
+
+La demo reproducible completa de la vertical multi-worker, con workers reales consumiendo eventos y escribiendo en
+ClickHouse, queda separada para #33.
 
 ## API administrativa
 
