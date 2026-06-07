@@ -63,14 +63,13 @@ def worker_config() -> WorkerConfig:
     return WorkerConfig(
         worker_id="local-worker",
         control_plane_base_url="http://localhost:8000",
+        runtime_contract_version=1,
         kafka_bootstrap_servers="kafka:29092",
         kafka_topics=["cdc_sync.public.customers"],
         kafka_client_id="cdc-sync-worker",
         kafka_group_id="cdc-sync-worker",
         kafka_auto_offset_reset="earliest",
         kafka_poll_timeout_ms=1000,
-        table_config_path="config/tables.json",
-        table_config_version=1,
         tables={
             "customers": build_table_config(
                 table="customers",
