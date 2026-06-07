@@ -57,7 +57,11 @@ export function AdminShell() {
     useState<AdminSectionValue>("workers");
 
   return (
-    <AppShell header={{ height: 72 }} padding={{ base: "md", md: "lg" }}>
+    <AppShell
+      header={{ height: 72 }}
+      footer={{ height: 28 }}
+      padding={{ base: "md", md: "lg" }}
+    >
       <AppShell.Header>
         <Group h="100%" px={{ base: "md", md: "lg" }} justify="space-between">
           <Group gap="sm" wrap="nowrap">
@@ -119,6 +123,14 @@ export function AdminShell() {
           </Tabs>
         </Stack>
       </AppShell.Main>
+
+      <AppShell.Footer className="app-footer">
+        <Group h="100%" justify="center" px="md">
+          <Text className="app-footer-text" size="xs">
+            Enrique Redondo Cortés
+          </Text>
+        </Group>
+      </AppShell.Footer>
     </AppShell>
   );
 }
