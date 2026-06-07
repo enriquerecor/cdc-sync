@@ -34,6 +34,10 @@ class Settings(BaseSettings):
         gt=0,
         validation_alias="API_WORKER_KAFKA_POLL_TIMEOUT_MS",
     )
+    cors_allowed_origins_raw: str = Field(
+        default="http://localhost:5173,http://127.0.0.1:5173",
+        validation_alias="API_CORS_ALLOWED_ORIGINS",
+    )
     database_host: str = Field(default="localhost", validation_alias="API_DATABASE_HOST")
     database_port: int = Field(
         default=5433,
@@ -66,6 +70,12 @@ class Settings(BaseSettings):
 
         raise ValueError("El valor no puede estar vacío")
 
+    @field_validator("cors_allowed_origins_raw")
+    @classmethod
+    def _normalize_cors_allowed_origins(cls, value: str) -> str:
+        allowed_origins = cls._parse_cors_allowed_origins(value)
+        return ",".join(allowed_origins)
+
     @property
     def database_url(self) -> str:
         return (
@@ -73,6 +83,23 @@ class Settings(BaseSettings):
             f"{self.database_user}:{self.database_password}@"
             f"{self.database_host}:{self.database_port}/{self.database_name}"
         )
+
+    @property
+    def cors_allowed_origins(self) -> list[str]:
+        return self._parse_cors_allowed_origins(self.cors_allowed_origins_raw)
+
+    @staticmethod
+    def _parse_cors_allowed_origins(value: str) -> list[str]:
+        allowed_origins = [
+            origin.strip()
+            for origin in value.split(",")
+            if origin.strip()
+        ]
+
+        if allowed_origins:
+            return allowed_origins
+
+        raise ValueError("Debe configurarse al menos un origen CORS permitido")
 
 
 @lru_cache(maxsize=1)

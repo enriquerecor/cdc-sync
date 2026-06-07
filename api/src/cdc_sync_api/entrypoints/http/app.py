@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from cdc_sync_api.entrypoints.http.routes.control_plane_admin import (
     router as control_plane_admin_router,
@@ -42,6 +43,13 @@ def build_app() -> FastAPI:
             "fuente pública para frontend, worker y herramientas como Postman."
         ),
         openapi_tags=OPENAPI_TAGS,
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_allowed_origins,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        allow_credentials=False,
     )
     app.include_router(root_router)
     app.include_router(health_router)
