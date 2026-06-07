@@ -17,9 +17,15 @@ from cdc_sync_api.application.dto.control_plane_admin_dto import (
 from cdc_sync_api.application.dto.control_plane_assignment_dto import (
     WorkerConfigAssignmentDto,
 )
-from cdc_sync_api.application.errors import ControlPlaneNotFoundError
+from cdc_sync_api.application.errors import (
+    ControlPlaneConflictError,
+    ControlPlaneNotFoundError,
+)
 from cdc_sync_api.application.ports.control_plane_repository import (
     ControlPlaneRepository,
+)
+from cdc_sync_api.application.services.worker_kafka_identity import (
+    effective_worker_kafka_group_id,
 )
 from cdc_sync_api.domain.control_plane import (
     ConfiguredTable,
@@ -50,6 +56,7 @@ class ManageControlPlaneUseCase:
             kafka_group_id=request.kafka_group_id,
             enabled=request.enabled,
         )
+        self._ensure_unique_worker_kafka_group(worker)
         self._repository.save_worker(worker)
         return worker
 
@@ -57,6 +64,7 @@ class ManageControlPlaneUseCase:
         return self._get_worker(worker_id)
 
     def update_worker(self, worker_id: UUID, request: WorkerRequestDto) -> Worker:
+        self._get_worker(worker_id)
         worker = Worker(
             id=worker_id,
             worker_id=request.worker_id,
@@ -65,6 +73,7 @@ class ManageControlPlaneUseCase:
             kafka_group_id=request.kafka_group_id,
             enabled=request.enabled,
         )
+        self._ensure_unique_worker_kafka_group(worker)
 
         updated = self._repository.update_worker(worker)
         if not updated:
@@ -265,6 +274,22 @@ class ManageControlPlaneUseCase:
     def _ensure_config_references_exist(self, request: SyncConfigRequestDto) -> None:
         self._get_source_connection(request.source_connection_id)
         self._get_destination(request.destination_id)
+
+    def _ensure_unique_worker_kafka_group(self, worker: Worker) -> None:
+        worker_group_id = effective_worker_kafka_group_id(worker)
+
+        for existing_worker in self._repository.list_workers():
+            if existing_worker.id == worker.id:
+                continue
+
+            existing_group_id = effective_worker_kafka_group_id(existing_worker)
+            if existing_group_id != worker_group_id:
+                continue
+
+            raise ControlPlaneConflictError(
+                f"El group_id efectivo de Kafka '{worker_group_id}' ya está asignado "
+                f"al worker '{existing_worker.worker_id}'"
+            )
 
     def _get_worker(self, worker_id: UUID) -> Worker:
         worker = self._repository.get_worker(worker_id)

@@ -115,6 +115,7 @@ def test_crud_operations_update_and_delete_administrative_entities() -> None:
 
     assert update_response.status_code == 200
     assert update_response.json()["worker_id"] == "worker-updated"
+    assert update_response.json()["kafka_group_id"] is None
     assert list_response.status_code == 200
     assert list_response.json()[0]["enabled"] is False
     assert delete_response.status_code == 204
@@ -207,6 +208,84 @@ def test_conflicts_are_returned_for_duplicates_and_referenced_deletes() -> None:
     delete_config_response = client.delete(f"/api/v1/configs/{config_id}")
 
     assert delete_config_response.status_code == 409
+
+
+def test_worker_rejects_effective_kafka_group_collisions() -> None:
+    client = _build_client()
+    first_response = client.post(
+        "/api/v1/workers",
+        json={
+            "worker_id": "orders",
+            "name": "Worker pedidos",
+            "enabled": True,
+        },
+    )
+
+    explicit_collision_response = client.post(
+        "/api/v1/workers",
+        json={
+            "worker_id": "invoices",
+            "name": "Worker facturas",
+            "kafka_group_id": "cdc-sync-worker-orders",
+            "enabled": True,
+        },
+    )
+    explicit_worker_response = client.post(
+        "/api/v1/workers",
+        json={
+            "worker_id": "billing",
+            "name": "Worker cobros",
+            "kafka_group_id": "cdc-sync-worker-custom",
+            "enabled": True,
+        },
+    )
+    derived_collision_response = client.post(
+        "/api/v1/workers",
+        json={
+            "worker_id": "custom",
+            "name": "Worker custom",
+            "enabled": True,
+        },
+    )
+    same_worker_update_response = client.put(
+        f"/api/v1/workers/{first_response.json()['id']}",
+        json={
+            "worker_id": "orders",
+            "name": "Worker pedidos actualizado",
+            "enabled": False,
+        },
+    )
+
+    assert first_response.status_code == 201
+    assert explicit_worker_response.status_code == 201
+    assert explicit_collision_response.status_code == 409
+    assert derived_collision_response.status_code == 409
+    assert same_worker_update_response.status_code == 200
+
+
+def test_missing_worker_update_returns_404_before_group_collision() -> None:
+    client = _build_client()
+    client.post(
+        "/api/v1/workers",
+        json={
+            "worker_id": "orders",
+            "name": "Worker pedidos",
+            "enabled": True,
+        },
+    )
+
+    response = client.put(
+        "/api/v1/workers/2a3fb8e3-9ea0-4b1d-b6f6-99ab7ab3914e",
+        json={
+            "worker_id": "invoices",
+            "name": "Worker inexistente",
+            "kafka_group_id": "cdc-sync-worker-orders",
+            "enabled": True,
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "No existe el worker indicado"}
 
 
 def test_materializes_cdc_connector_from_source_connection() -> None:
