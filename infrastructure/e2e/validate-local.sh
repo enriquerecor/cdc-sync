@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
-printf '[e2e] ERROR: %s\n' \
-  "validate-local.sh está obsoleto temporalmente: dependía del fixture JSON local eliminado en #28. La validación completa queda delegada a #33." >&2
-exit 1
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
+cd "${REPO_DIR}"
+exec python3 infrastructure/e2e/demo_local.py all
