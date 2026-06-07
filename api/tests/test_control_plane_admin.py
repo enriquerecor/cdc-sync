@@ -381,6 +381,117 @@ def test_worker_runtime_config_endpoint_returns_404_for_missing_worker() -> None
     assert response.json() == {"detail": "No existe el worker indicado"}
 
 
+def test_worker_runtime_config_endpoint_returns_404_without_assignment() -> None:
+    client = _build_client_with_runtime_config()
+    client.post(
+        "/api/v1/workers",
+        json={
+            "worker_id": "worker-without-config",
+            "name": "Worker sin configuración",
+            "enabled": True,
+        },
+    )
+
+    response = client.get("/workers/worker-without-config/config")
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "No existe configuración efectiva para el worker indicado"
+    }
+
+
+def test_worker_runtime_config_endpoint_returns_422_for_disabled_config() -> None:
+    client = _build_client_with_runtime_config()
+    worker_response = client.post(
+        "/api/v1/workers",
+        json={
+            "worker_id": "worker-with-disabled-config",
+            "name": "Worker con configuración deshabilitada",
+            "enabled": True,
+        },
+    )
+    source_response = client.post(
+        "/api/v1/source-connections",
+        json=_source_connection_payload(),
+    )
+    destination_response = client.post(
+        "/api/v1/destinations",
+        json=_destination_payload(),
+    )
+    config_response = client.post(
+        "/api/v1/configs",
+        json=_config_payload(
+            source_connection_id=source_response.json()["id"],
+            destination_id=destination_response.json()["id"],
+            enabled=False,
+        ),
+    )
+    client.put(
+        f"/api/v1/workers/{worker_response.json()['id']}/config-assignment",
+        json={"config_id": config_response.json()["id"]},
+    )
+
+    response = client.get("/workers/worker-with-disabled-config/config")
+
+    assert response.status_code == 422
+    assert "deshabilitada" in response.json()["detail"]
+
+
+def test_control_plane_worker_flow_materializes_cdc_and_serves_runtime() -> None:
+    client, kafka_connect_client = _build_client_with_runtime_and_cdc_materialization()
+    worker_response = client.post(
+        "/api/v1/workers",
+        json={
+            "worker_id": "closing-worker",
+            "name": "Worker cierre",
+            "enabled": True,
+        },
+    )
+    source_response = client.post(
+        "/api/v1/source-connections",
+        json=_source_connection_payload(),
+    )
+    destination_response = client.post(
+        "/api/v1/destinations",
+        json=_destination_payload(),
+    )
+    config_response = client.post(
+        "/api/v1/configs",
+        json=_config_payload(
+            source_connection_id=source_response.json()["id"],
+            destination_id=destination_response.json()["id"],
+        ),
+    )
+    assignment_response = client.put(
+        f"/api/v1/workers/{worker_response.json()['id']}/config-assignment",
+        json={"config_id": config_response.json()["id"]},
+    )
+    materialization_response = client.put(
+        f"/api/v1/source-connections/{source_response.json()['id']}/cdc-connector"
+    )
+    runtime_response = client.get("/workers/closing-worker/config")
+
+    assert worker_response.status_code == 201
+    assert source_response.status_code == 201
+    assert destination_response.status_code == 201
+    assert config_response.status_code == 201
+    assert assignment_response.status_code == 200
+    assert materialization_response.status_code == 200
+    assert runtime_response.status_code == 200
+    assert materialization_response.json()["captured_tables"] == ["public.customers"]
+    assert "password" not in materialization_response.text
+    assert kafka_connect_client.calls[0][0] == (
+        f"cdc-sync-postgresql-{source_response.json()['id']}"
+    )
+    assert kafka_connect_client.calls[0][1]["database.password"] == "cdc_sync"
+    assert runtime_response.json()["kafka"]["topics"] == ["cdc_sync.public.customers"]
+    assert runtime_response.json()["destination"]["credentials"] == {
+        "user": "cdc_sync",
+        "password": "cdc_sync",
+    }
+    assert runtime_response.json()["tables"]["customers"]["source"]["schema"] == "public"
+
+
 def test_materializes_cdc_connector_from_source_connection() -> None:
     client, kafka_connect_client = _build_client_with_cdc_materialization()
     source_id = client.post(
@@ -707,6 +818,36 @@ def _build_client_with_cdc_materialization(
     return TestClient(app), kafka_client
 
 
+def _build_client_with_runtime_and_cdc_materialization(
+    kafka_connect_client=None,
+) -> tuple[TestClient, "_KafkaConnectClient"]:
+    repository = InMemoryControlPlaneRepository()
+    app = build_app()
+    kafka_client = kafka_connect_client or _KafkaConnectClient()
+    app.dependency_overrides[get_control_plane_admin_use_case] = (
+        lambda: ManageControlPlaneUseCase(repository)
+    )
+    app.dependency_overrides[get_worker_runtime_config_use_case] = (
+        lambda: GetWorkerRuntimeConfigUseCase(
+            repository=repository,
+            kafka_bootstrap_servers="kafka:29092",
+            kafka_client_id_prefix="cdc-sync-worker",
+            kafka_auto_offset_reset="earliest",
+            kafka_poll_timeout_ms=1000,
+        )
+    )
+    app.dependency_overrides[get_materialize_cdc_connector_use_case] = (
+        lambda: MaterializeCdcConnectorUseCase(
+            repository=repository,
+            compiler_registry=CdcConnectorCompilerRegistry(
+                (DebeziumPostgresConnectorCompiler(),)
+            ),
+            kafka_connect_client=kafka_client,
+        )
+    )
+    return TestClient(app), kafka_client
+
+
 class _KafkaConnectClient:
     def __init__(self) -> None:
         self.calls: tuple[tuple[str, dict[str, str]], ...] = ()
@@ -765,13 +906,14 @@ def _config_payload(
     source_connection_id: str,
     destination_id: str,
     column_name: str = "id",
+    enabled: bool = True,
 ) -> dict[str, object]:
     return {
         "name": "Configuración local",
         "source_connection_id": source_connection_id,
         "destination_id": destination_id,
         "sync_mode": "realtime",
-        "enabled": True,
+        "enabled": enabled,
         "tables": [
             {
                 "logical_name": "customers",
