@@ -1,6 +1,8 @@
 SHELL := /bin/bash
 
 ENV_FILE ?= .env
+FRONTEND_ENV_TEMPLATE := frontend/.env.example
+FRONTEND_ENV_FILE := frontend/.env
 WORKER_TEST_VENV_DIR := .venv
 WORKER_TEST_VENV_PYTHON := $(WORKER_TEST_VENV_DIR)/bin/python
 WORKER_TEST_VENV_STAMP := $(WORKER_TEST_VENV_DIR)/.worker-test-installed
@@ -28,7 +30,7 @@ endef
 
 .DEFAULT_GOAL := help
 
-.PHONY: help env-init api-up api-migrate api-logs api-health api-test api-test-integration worker-test-deps worker-test demo-up demo-migrate demo-configure demo-materialize demo-workers demo-changes demo-assert demo-local e2e-validate debezium-postgres-render debezium-postgres-apply debezium-postgres-status
+.PHONY: help env-init api-up api-migrate api-logs api-health api-test api-test-integration frontend-install frontend-dev frontend-build frontend-api-types frontend-up frontend-logs worker-test-deps worker-test demo-up demo-migrate demo-configure demo-materialize demo-workers demo-changes demo-assert demo-local e2e-validate debezium-postgres-render debezium-postgres-apply debezium-postgres-status
 
 help:
 	@echo "Objetivos disponibles:"
@@ -39,6 +41,12 @@ help:
 	@echo "  make api-health"
 	@echo "  make api-test"
 	@echo "  make api-test-integration"
+	@echo "  make frontend-install"
+	@echo "  make frontend-dev"
+	@echo "  make frontend-build"
+	@echo "  make frontend-api-types"
+	@echo "  make frontend-up"
+	@echo "  make frontend-logs"
 	@echo "  make worker-test-deps"
 	@echo "  make worker-test"
 	@echo "  make demo-up"
@@ -67,6 +75,12 @@ env-init:
 		mkdir -p "$$(dirname "$(POSTGRES_CONNECTOR_ENV_FILE)")"; \
 		cp "$(POSTGRES_CONNECTOR_ENV_TEMPLATE)" "$(POSTGRES_CONNECTOR_ENV_FILE)"; \
 		echo "$(POSTGRES_CONNECTOR_ENV_FILE) creado a partir de $(POSTGRES_CONNECTOR_ENV_TEMPLATE)"; \
+	fi
+	@if [[ -f "$(FRONTEND_ENV_FILE)" ]]; then \
+		echo "$(FRONTEND_ENV_FILE) ya existe. No se sobrescribe."; \
+	else \
+		cp "$(FRONTEND_ENV_TEMPLATE)" "$(FRONTEND_ENV_FILE)"; \
+		echo "$(FRONTEND_ENV_FILE) creado a partir de $(FRONTEND_ENV_TEMPLATE)"; \
 	fi
 
 api-up:
@@ -125,6 +139,24 @@ api-test-integration:
 		-e API_TEST_DATABASE_URL="postgresql+psycopg://cdc_sync_control_plane_test:cdc_sync_control_plane_test@$${postgres_name}:5432/cdc_sync_control_plane_test" \
 		cdc-sync-api-test \
 		pytest api/tests/test_control_plane_repository_integration.py -v
+
+frontend-install:
+	@npm --prefix frontend ci
+
+frontend-dev:
+	@npm --prefix frontend run dev
+
+frontend-build:
+	@npm --prefix frontend run build
+
+frontend-api-types:
+	@npm --prefix frontend run api:types
+
+frontend-up:
+	@docker compose up -d --build frontend
+
+frontend-logs:
+	@docker compose logs -f frontend
 
 worker-test-deps: $(WORKER_TEST_VENV_STAMP)
 	@echo "Entorno virtual del worker disponible en $(WORKER_TEST_VENV_DIR)"
