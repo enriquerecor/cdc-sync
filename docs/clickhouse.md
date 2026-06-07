@@ -17,13 +17,10 @@ Puertos por defecto:
 - HTTP: `localhost:8123`
 - protocolo nativo: `localhost:9000`
 
-Para ClickHouse Cloud, el puerto nativo seguro habitual es `9440` y requiere TLS.
-En el worker, se configura de forma explícita con:
+Para ClickHouse Cloud, el puerto nativo seguro habitual es `9440` y requiere TLS. En el MVP, esos valores pertenecen al
+destino ClickHouse persistido en el control plane y llegan al worker mediante el contrato runtime.
 
-- `WORKER_CLICKHOUSE_PORT=9440`
-- `WORKER_CLICKHOUSE_SECURE=true`
-
-Base usada por el worker:
+Base local por defecto:
 
 - `cdc_sync_analytics`
 
@@ -59,7 +56,7 @@ docker compose exec clickhouse clickhouse-client --query "SHOW TABLES FROM cdc_s
 
 Resultado esperado:
 
-- aparecen `customers` y `orders` si ambas tablas están habilitadas en el fixture local `worker/config/tables.json`
+- aparecen las tablas incluidas en la configuración runtime asignada al `WORKER_ID`
 
 ## Recreación del servicio
 

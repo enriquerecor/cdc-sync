@@ -11,14 +11,14 @@ PostgreSQL (OLTP) -> Debezium -> Kafka -> Worker (Python) -> ClickHouse
 FastAPI (control plane) -> PostgreSQL (control plane)
 ```
 
-Esta fase deja levantada la infraestructura base y valida la persistencia versionada extremo a extremo desde
-PostgreSQL hasta ClickHouse para las tablas configuradas en el worker.
+Esta fase deja levantada la infraestructura base y conecta el worker stateless con el contrato runtime publicado por el
+control plane.
 
 La configuración local queda separada en tres contratos:
 
 - `.env`: orquestación compartida del stack Docker.
 - `api/.env.example`: variables técnicas para ejecutar la API fuera de Docker.
-- `worker/.env.example`: variables técnicas del worker y fixtures temporales hasta la carga remota de #28.
+- `worker/.env.example`: variables técnicas mínimas para ejecutar el worker fuera de Docker.
 
 El conector Debezium local usa un fixture propio generado desde
 `infrastructure/debezium/connectors/postgresql/source.local.env.example`; no es la fuente de verdad funcional del MVP.
@@ -36,8 +36,8 @@ Preparar los ficheros locales de entorno:
 make env-init
 ```
 
-Este paso crea `.env` y `worker/config/tables.json` a partir de sus ejemplos versionados si todavía no existen.
-También crea el fixture local del conector en `infrastructure/debezium/connectors/generated/`.
+Este paso crea `.env` si todavía no existe. También crea el fixture local del conector en
+`infrastructure/debezium/connectors/generated/`.
 
 ## API REST del control plane
 
@@ -54,31 +54,26 @@ make api-health
 
 La documentación detallada del backend está en [docs/api.md](docs/api.md).
 
-Ejecutar la validación e2e reproducible:
+La validación e2e anterior queda obsoleta temporalmente:
 
 ```bash
 make e2e-validate
 ```
 
-Este comando:
-
-- levanta el stack con `docker compose`
-- aplica el conector Debezium
-- ejecuta una validación completa sobre `customers` y `orders`
-- comprueba en ClickHouse los casos de `INSERT`, `UPDATE` y `DELETE` lógico
-- termina con error si alguna comprobación no converge dentro del timeout
+Este comando falla de forma explícita porque dependía del fixture JSON local eliminado en #28. La demo reproducible
+multi-worker desde configuración API queda delegada a #33.
 
 ## Qué incluye esta fase
 
 - PostgreSQL local con tablas de prueba `customers` y `orders`
 - ZooKeeper y Kafka para mensajería
 - Debezium Connect con conector PostgreSQL materializable desde el control plane
-- Worker base en Python que consume eventos CDC, los normaliza y los persiste en ClickHouse
+- Worker stateless en Python que carga su configuración runtime desde la API, consume eventos CDC, los normaliza y los
+  persiste en ClickHouse
 - ClickHouse como primer destino analítico versionado del pipeline
 
-Hasta que la issue #28 complete la carga runtime del worker desde el control plane, `worker/config/tables.json` se
-mantiene como fixture de desarrollo. El env local del conector se conserva como fixture de la validación e2e actual y
-para depuración local, pero no como fuente canónica del MVP.
+El worker no usa JSON local de tablas ni variables locales de Kafka o ClickHouse como fuente funcional. El env local del
+conector se conserva como fixture de depuración local, pero no como fuente canónica del MVP.
 
 ## Documentación detallada
 
@@ -93,7 +88,7 @@ para depuración local, pero no como fuente canónica del MVP.
 ## Estado actual
 
 - El alta del conector CDC no se hace automáticamente con `docker compose up`.
-- El flujo recomendado y soportado para esta fase es:
+- El flujo e2e completo queda pendiente de #33. Hasta entonces, este comando falla con un mensaje explícito:
 
 ```bash
 make e2e-validate
