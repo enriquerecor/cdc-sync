@@ -2,6 +2,9 @@ from cdc_sync_api.application.use_cases.check_health import CheckHealthUseCase
 from cdc_sync_api.application.services.cdc_connector_compiler_registry import (
     CdcConnectorCompilerRegistry,
 )
+from cdc_sync_api.application.use_cases.get_worker_runtime_config import (
+    GetWorkerRuntimeConfigUseCase,
+)
 from cdc_sync_api.application.use_cases.materialize_cdc_connector import (
     MaterializeCdcConnectorUseCase,
 )
@@ -33,6 +36,17 @@ def get_health_use_case() -> CheckHealthUseCase:
 def get_control_plane_admin_use_case() -> ManageControlPlaneUseCase:
     return ManageControlPlaneUseCase(
         repository=SqlAlchemyControlPlaneRepository(get_engine()),
+    )
+
+
+def get_worker_runtime_config_use_case() -> GetWorkerRuntimeConfigUseCase:
+    settings = get_settings()
+    return GetWorkerRuntimeConfigUseCase(
+        repository=SqlAlchemyControlPlaneRepository(get_engine()),
+        kafka_bootstrap_servers=settings.worker_kafka_bootstrap_servers,
+        kafka_client_id_prefix=settings.worker_kafka_client_id_prefix,
+        kafka_auto_offset_reset=settings.worker_kafka_auto_offset_reset,
+        kafka_poll_timeout_ms=settings.worker_kafka_poll_timeout_ms,
     )
 
 
