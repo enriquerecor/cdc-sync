@@ -1,6 +1,5 @@
 import {
   AppShell,
-  Badge,
   Box,
   Group,
   Stack,
@@ -9,7 +8,6 @@ import {
   Title,
 } from "@mantine/core";
 import {
-  Activity,
   Database,
   HardDrive,
   LayoutDashboard,
@@ -70,12 +68,9 @@ export function AdminShell() {
                 <Title order={1} size="h3">
                   cdc-sync
                 </Title>
-                <Badge variant="light" color="teal">
-                  MVP
-                </Badge>
               </Group>
               <Text size="sm" c="dimmed">
-                Control plane administrativo
+                Consola de sincronización CDC
               </Text>
             </Stack>
           </Group>
@@ -85,12 +80,9 @@ export function AdminShell() {
 
       <AppShell.Main>
         <Stack gap="lg">
-          <Group gap="xs" c="dimmed">
-            <Activity size={18} strokeWidth={1.8} />
-            <Text size="sm">
-              Configuración administrativa del pipeline CDC
-            </Text>
-          </Group>
+          <Text size="sm" c="dimmed">
+            Gestiona sincronizaciones entre sistemas operacionales y analíticos.
+          </Text>
 
           <Tabs
             value={activeSection}

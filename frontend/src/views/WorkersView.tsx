@@ -4,7 +4,7 @@ export function WorkersView() {
   return (
     <EmptyAdministrativeView
       title="Workers"
-      description="Sección preparada para gestionar los workers que cargarán su configuración runtime desde el control plane."
+      description="Gestiona los procesos que ejecutan las sincronizaciones con una configuración estable."
     />
   );
 }
