@@ -17,6 +17,7 @@ import {
 import { useState } from "react";
 
 import { ApiStatusIndicator } from "../components/ApiStatusIndicator";
+import { ColorSchemeToggle } from "../components/ColorSchemeToggle";
 import { ConfigurationsView } from "../views/ConfigurationsView";
 import { DestinationsView } from "../views/DestinationsView";
 import { SourceConnectionsView } from "../views/SourceConnectionsView";
@@ -74,7 +75,10 @@ export function AdminShell() {
               </Text>
             </Stack>
           </Group>
-          <ApiStatusIndicator />
+          <Group gap="sm" wrap="nowrap">
+            <ColorSchemeToggle />
+            <ApiStatusIndicator />
+          </Group>
         </Group>
       </AppShell.Header>
 

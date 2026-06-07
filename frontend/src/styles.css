@@ -10,7 +10,8 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: #f7f7f4;
+  color: var(--mantine-color-text);
+  background: var(--mantine-color-body);
 }
 
 button,
@@ -18,4 +19,14 @@ input,
 textarea,
 select {
   font: inherit;
+}
+
+.color-scheme-toggle {
+  color: var(--mantine-color-text);
+  background: transparent;
+  border: 1px solid var(--mantine-color-default-border);
+}
+
+.color-scheme-toggle:hover {
+  background: var(--mantine-color-default-hover);
 }

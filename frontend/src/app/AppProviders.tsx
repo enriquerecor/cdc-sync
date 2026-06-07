@@ -34,7 +34,7 @@ export function AppProviders({ children }: AppProvidersProps) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <MantineProvider theme={theme}>
+      <MantineProvider theme={theme} defaultColorScheme="light">
         <ModalsProvider>
           <Notifications limit={4} position="top-right" />
           {children}
