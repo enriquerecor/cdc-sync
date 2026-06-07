@@ -1,8 +1,6 @@
 SHELL := /bin/bash
 
 ENV_FILE ?= .env
-WORKER_TABLE_CONFIG_TEMPLATE := worker/config/tables.example.json
-WORKER_TABLE_CONFIG_OUTPUT := worker/config/tables.json
 WORKER_TEST_VENV_DIR := .venv
 WORKER_TEST_VENV_PYTHON := $(WORKER_TEST_VENV_DIR)/bin/python
 WORKER_TEST_VENV_STAMP := $(WORKER_TEST_VENV_DIR)/.worker-test-installed
@@ -10,7 +8,6 @@ POSTGRES_CONNECTOR_TEMPLATE := infrastructure/debezium/connectors/postgresql/sou
 POSTGRES_CONNECTOR_ENV_TEMPLATE := infrastructure/debezium/connectors/postgresql/source.local.env.example
 POSTGRES_CONNECTOR_ENV_FILE := infrastructure/debezium/connectors/generated/postgresql-source.local.env
 POSTGRES_CONNECTOR_OUTPUT := infrastructure/debezium/connectors/generated/postgresql-source.local.json
-E2E_VALIDATE_SCRIPT := infrastructure/e2e/validate-local.sh
 CONNECT_RETRY_ATTEMPTS ?= 15
 CONNECT_RETRY_DELAY_SECONDS ?= 2
 
@@ -54,12 +51,6 @@ env-init:
 	else \
 		cp .env.example "$(ENV_FILE)"; \
 		echo "$(ENV_FILE) creado a partir de .env.example"; \
-	fi
-	@if [[ -f "$(WORKER_TABLE_CONFIG_OUTPUT)" ]]; then \
-		echo "$(WORKER_TABLE_CONFIG_OUTPUT) ya existe. No se sobrescribe."; \
-	else \
-		cp "$(WORKER_TABLE_CONFIG_TEMPLATE)" "$(WORKER_TABLE_CONFIG_OUTPUT)"; \
-		echo "$(WORKER_TABLE_CONFIG_OUTPUT) creado a partir de $(WORKER_TABLE_CONFIG_TEMPLATE)"; \
 	fi
 	@if [[ -f "$(POSTGRES_CONNECTOR_ENV_FILE)" ]]; then \
 		echo "$(POSTGRES_CONNECTOR_ENV_FILE) ya existe. No se sobrescribe."; \
@@ -134,7 +125,9 @@ worker-test: $(WORKER_TEST_VENV_STAMP)
 		"$(WORKER_TEST_VENV_PYTHON)" -m pytest worker/tests -v
 
 e2e-validate:
-	@"$(E2E_VALIDATE_SCRIPT)"
+	@echo "make e2e-validate está obsoleto temporalmente: dependía del fixture JSON local eliminado en #28." >&2
+	@echo "La validación completa de la vertical multi-worker queda delegada a la issue #33." >&2
+	@exit 1
 
 $(WORKER_TEST_VENV_PYTHON):
 	@python3 -m venv "$(WORKER_TEST_VENV_DIR)"
