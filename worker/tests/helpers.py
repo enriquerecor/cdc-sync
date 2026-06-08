@@ -28,10 +28,9 @@ def build_table_config(
         enabled=enabled,
         source=TableSourceConfig(
             adapter=adapter,
+            schema="public",
             table=table,
             topic=topic,
-            connection="postgres_local",
-            schema="public",
         ),
         primary_key_fields=primary_key_fields,
         sync=TableSyncConfig(mode="realtime"),

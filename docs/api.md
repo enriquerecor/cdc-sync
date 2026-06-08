@@ -96,8 +96,8 @@ PUT /api/v1/workers/{worker_internal_id}/config-assignment
 }
 ```
 
-Asignar o editar una configuración cambia la fuente de verdad administrativa. El endpoint runtime ya puede compilar la
-configuración efectiva, pero el worker no la consumirá hasta #28; hasta entonces seguirá usando el fixture local.
+Asignar o editar una configuración cambia la fuente de verdad administrativa. El worker carga el contrato runtime al
+arrancar y mantiene esa configuración fija hasta el siguiente reinicio manual.
 
 Los workers aceptan `kafka_group_id` opcional en creación y actualización. Si no se informa, el contrato runtime deriva
 el grupo efectivo como `cdc-sync-worker-{worker_id}`. La API rechaza workers cuyo grupo efectivo colisione con el de

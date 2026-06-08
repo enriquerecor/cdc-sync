@@ -24,25 +24,19 @@ make env-init
 Este comando crea, sin sobrescribir si ya existen:
 
 - `.env`, con variables compartidas por Docker Compose;
-- `worker/config/tables.json`, fixture temporal del worker local;
 - `infrastructure/debezium/connectors/generated/postgresql-source.local.env`, fixture temporal del conector Debezium.
 
-La configuración funcional del MVP debe vivir en el control plane. El fixture del conector sigue alimentando la
-validación e2e actual y la depuración local; el JSON del worker mantiene operativa la demo local hasta completar la
-carga remota del worker.
+La configuración funcional del MVP vive en el control plane. El fixture del conector sigue disponible para depuración
+local, pero el worker ya no usa JSON local como fuente de verdad.
 
-Ejecutar la validación e2e reproducible:
+La validación e2e anterior queda obsoleta temporalmente:
 
 ```bash
 make e2e-validate
 ```
 
-Este flujo automatiza:
-
-- el arranque del stack completo con `docker compose up -d --build`
-- el alta del conector PostgreSQL en Kafka Connect
-- la validación del flujo `customers` y `orders`
-- las comprobaciones en ClickHouse de `INSERT`, `UPDATE` y `DELETE` lógico
+El comando falla de forma explícita porque dependía del fixture JSON local eliminado en #28. La demo reproducible
+multi-worker desde configuración API queda delegada a #33.
 
 ## Reset global
 
@@ -50,7 +44,7 @@ Si se quiere reconstruir el proyecto desde cero:
 
 ```bash
 docker compose down -v
-make e2e-validate
+make env-init
 ```
 
 ## Diagnóstico manual
@@ -65,7 +59,7 @@ make debezium-postgres-status
 ## Contratos de entorno
 
 - API en Docker: recibe `API_*` desde `docker-compose.yml` y la conexión interna al PostgreSQL del control plane.
-- Worker en Docker: arranca con `WORKER_ID` y `WORKER_CONTROL_PLANE_BASE_URL`; el JSON local y ClickHouse por entorno son compatibilidad temporal.
+- Worker en Docker: arranca con `WORKER_ID` y `WORKER_CONTROL_PLANE_BASE_URL`; Kafka, tablas y ClickHouse vienen del contrato runtime remoto.
 - Infraestructura local: PostgreSQL, Kafka, Connect y ClickHouse toman sus puertos y credenciales de `.env`.
 
 ## Documentación por bloque
