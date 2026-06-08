@@ -1,6 +1,6 @@
 import { apiClient } from "./client";
-import { createApiResponseError } from "./errors";
 import type { components } from "./generated/openapi";
+import { assertSuccessfulResponse, requireData } from "./response";
 
 export type Worker = components["schemas"]["WorkerResponse"];
 export type WorkerRequest = components["schemas"]["WorkerRequest"];
@@ -189,24 +189,4 @@ export async function deleteDestination(destinationId: string): Promise<void> {
   );
 
   assertSuccessfulResponse(response, error, "No se pudo eliminar el destino");
-}
-
-function assertSuccessfulResponse(
-  response: Response,
-  error: unknown,
-  fallbackMessage: string,
-): void {
-  if (response.ok) {
-    return;
-  }
-
-  throw createApiResponseError(response.status, error, fallbackMessage);
-}
-
-function requireData<T>(data: T | undefined, label: string): T {
-  if (data === undefined) {
-    throw new Error(`La API no devolvió ${label}`);
-  }
-
-  return data;
 }

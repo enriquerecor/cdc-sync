@@ -20,11 +20,7 @@ import {
   buildSourceConnectionCreatePayload,
   buildSourceConnectionUpdatePayload,
 } from "../utils/payloadMappers";
-
-const SOURCE_CONNECTIONS_QUERY_KEY = [
-  "control-plane-admin",
-  "source-connections",
-] as const;
+import { CONTROL_PLANE_QUERY_KEYS } from "../utils/queryKeys";
 
 export function useSourceConnectionsAdmin() {
   const queryClient = useQueryClient();
@@ -33,7 +29,7 @@ export function useSourceConnectionsAdmin() {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const sourceConnectionsQuery = useQuery({
-    queryKey: SOURCE_CONNECTIONS_QUERY_KEY,
+    queryKey: CONTROL_PLANE_QUERY_KEYS.sourceConnections,
     queryFn: listSourceConnections,
   });
 
@@ -42,7 +38,7 @@ export function useSourceConnectionsAdmin() {
     onSuccess: () => {
       closeModal();
       void queryClient.invalidateQueries({
-        queryKey: SOURCE_CONNECTIONS_QUERY_KEY,
+        queryKey: CONTROL_PLANE_QUERY_KEYS.sourceConnections,
       });
       showSuccessNotification("Origen creado", "El origen se guardó correctamente");
     },
@@ -60,7 +56,7 @@ export function useSourceConnectionsAdmin() {
     onSuccess: () => {
       closeModal();
       void queryClient.invalidateQueries({
-        queryKey: SOURCE_CONNECTIONS_QUERY_KEY,
+        queryKey: CONTROL_PLANE_QUERY_KEYS.sourceConnections,
       });
       showSuccessNotification(
         "Origen actualizado",
@@ -74,7 +70,7 @@ export function useSourceConnectionsAdmin() {
     mutationFn: deleteSourceConnection,
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: SOURCE_CONNECTIONS_QUERY_KEY,
+        queryKey: CONTROL_PLANE_QUERY_KEYS.sourceConnections,
       });
       showSuccessNotification("Origen eliminado", "El origen se eliminó");
     },

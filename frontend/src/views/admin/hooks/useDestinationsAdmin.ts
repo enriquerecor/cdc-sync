@@ -20,8 +20,7 @@ import {
   buildDestinationCreatePayload,
   buildDestinationUpdatePayload,
 } from "../utils/payloadMappers";
-
-const DESTINATIONS_QUERY_KEY = ["control-plane-admin", "destinations"] as const;
+import { CONTROL_PLANE_QUERY_KEYS } from "../utils/queryKeys";
 
 export function useDestinationsAdmin() {
   const queryClient = useQueryClient();
@@ -30,7 +29,7 @@ export function useDestinationsAdmin() {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const destinationsQuery = useQuery({
-    queryKey: DESTINATIONS_QUERY_KEY,
+    queryKey: CONTROL_PLANE_QUERY_KEYS.destinations,
     queryFn: listDestinations,
   });
 
@@ -38,7 +37,9 @@ export function useDestinationsAdmin() {
     mutationFn: createDestination,
     onSuccess: () => {
       closeModal();
-      void queryClient.invalidateQueries({ queryKey: DESTINATIONS_QUERY_KEY });
+      void queryClient.invalidateQueries({
+        queryKey: CONTROL_PLANE_QUERY_KEYS.destinations,
+      });
       showSuccessNotification(
         "Destino creado",
         "El destino se guardó correctamente",
@@ -57,7 +58,9 @@ export function useDestinationsAdmin() {
     }) => updateDestination(destinationId, payload),
     onSuccess: () => {
       closeModal();
-      void queryClient.invalidateQueries({ queryKey: DESTINATIONS_QUERY_KEY });
+      void queryClient.invalidateQueries({
+        queryKey: CONTROL_PLANE_QUERY_KEYS.destinations,
+      });
       showSuccessNotification(
         "Destino actualizado",
         "Los cambios se guardaron correctamente",
@@ -69,7 +72,9 @@ export function useDestinationsAdmin() {
   const deleteDestinationMutation = useMutation({
     mutationFn: deleteDestination,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: DESTINATIONS_QUERY_KEY });
+      void queryClient.invalidateQueries({
+        queryKey: CONTROL_PLANE_QUERY_KEYS.destinations,
+      });
       showSuccessNotification("Destino eliminado", "El destino se eliminó");
     },
     onError: showApiErrorNotification,
