@@ -2,8 +2,8 @@
 
 Base técnica del frontend MVP de `cdc-sync`.
 
-La aplicación usa Vite, React, TypeScript y Mantine. En esta fase solo prepara el layout administrativo, la integración
-con la API y el cliente HTTP tipado; no implementa CRUD de workers, conexiones, destinos ni configuraciones.
+La aplicación usa Vite, React, TypeScript y Mantine. Permite gestionar las entidades administrativas base del control
+plane: workers, conexiones de origen y destinos analíticos.
 
 ## Configuración
 
@@ -44,6 +44,23 @@ La UI queda disponible en:
 ```text
 http://localhost:5173
 ```
+
+## Uso básico
+
+La consola incluye tres CRUDs administrativos:
+
+- Workers: alta, edición, activación/desactivación y eliminación.
+- Orígenes: alta, edición y eliminación de conexiones de origen.
+- Destinos: alta, edición y eliminación de destinos analíticos.
+
+Los motores se seleccionan desde catálogos internos. En el MVP solo están habilitados PostgreSQL como origen y
+ClickHouse como destino, pero las vistas no quedan acopladas a esas tecnologías concretas.
+
+Las respuestas de lectura no contienen secretos. En creación, usuario y contraseña son obligatorios para orígenes y
+destinos. En edición, las credenciales se envían solo si se rellenan explícitamente los dos campos.
+
+La pestaña de configuraciones queda reservada para el flujo posterior de tablas, asignaciones, materialización CDC y
+runtime.
 
 ## Desarrollo con Docker Compose
 
