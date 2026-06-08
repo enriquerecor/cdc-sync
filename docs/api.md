@@ -64,6 +64,7 @@ Permite crear, consultar, modificar y eliminar la configuración administrativa 
 - `/api/v1/destinations`
 - `/api/v1/configs`
 - `/api/v1/workers/{worker_internal_id}/config-assignment`
+- `/api/v1/source-connections/{source_connection_id}/cdc-connector`
 
 `configs` se gestionan como agregado completo: una configuración incluye sus tablas, claves primarias y columnas de
 destino. Al actualizar una configuración se reemplaza el agregado completo persistido.
@@ -96,6 +97,36 @@ PUT /api/v1/workers/{worker_internal_id}/config-assignment
 
 En esta fase, asignar o editar una configuración solo cambia la fuente de verdad administrativa. El worker seguirá
 aplicando cambios tras reinicio manual cuando se implemente el contrato runtime remoto de las siguientes issues.
+
+## Materialización CDC
+
+El control plane materializa conectores CDC mediante una operación administrativa explícita:
+
+```http
+PUT /api/v1/source-connections/{source_connection_id}/cdc-connector
+```
+
+La operación compila un conector CDC para la conexión de origen indicada y lo aplica de forma idempotente en Kafka
+Connect con `PUT /connectors/{name}/config`.
+
+El caso de uso es agnóstico del motor OLTP: selecciona un compilador por `source_type` y falla de forma explícita si no
+existe un adapter disponible. En el MVP solo está implementado el adapter Debezium PostgreSQL.
+
+Respuesta esperada:
+
+```json
+{
+  "connector_name": "cdc-sync-postgresql-00000000-0000-0000-0000-000000000000",
+  "source_connection_id": "00000000-0000-0000-0000-000000000000",
+  "source_type": "postgresql",
+  "connector_class": "io.debezium.connector.postgresql.PostgresConnector",
+  "topic_prefix": "cdc_sync",
+  "captured_tables": ["public.customers", "public.orders"]
+}
+```
+
+La respuesta no expone credenciales. Si la configuración administrativa no permite compilar un conector válido, la API
+devuelve `422`. Si Kafka Connect no está disponible o rechaza la configuración, devuelve `502`.
 
 ## Variables principales
 

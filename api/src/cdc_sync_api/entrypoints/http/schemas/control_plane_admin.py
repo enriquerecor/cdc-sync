@@ -6,6 +6,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from cdc_sync_api.application.dto.cdc_connector_dto import (
+    MaterializedCdcConnectorDto,
+)
 from cdc_sync_api.application.dto.control_plane_admin_dto import (
     AssignmentRequestDto,
     ConfiguredTableDto,
@@ -150,6 +153,31 @@ class SourceConnectionResponse(BaseModel):
             port=source_connection.port,
             database_name=source_connection.database_name,
             credentials_configured=True,
+        )
+
+
+class CdcConnectorMaterializationResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    connector_name: str
+    source_connection_id: UUID
+    source_type: str
+    connector_class: str
+    topic_prefix: str
+    captured_tables: tuple[str, ...]
+
+    @classmethod
+    def from_dto(
+        cls,
+        dto: MaterializedCdcConnectorDto,
+    ) -> "CdcConnectorMaterializationResponse":
+        return cls(
+            connector_name=dto.connector_name,
+            source_connection_id=dto.source_connection_id,
+            source_type=dto.source_type,
+            connector_class=dto.connector_class,
+            topic_prefix=dto.topic_prefix,
+            captured_tables=dto.captured_tables,
         )
 
 

@@ -69,9 +69,15 @@ def test_persists_source_and_destination_with_inline_credentials(
 
     persisted_source_connection = repository.get_source_connection(source_connection.id)
     persisted_destination = repository.get_destination(destination.id)
+    persisted_secret = repository.get_secret_reference(source_secret.id)
 
     assert persisted_source_connection == source_connection
     assert persisted_destination == destination
+    assert persisted_secret is not None
+    assert persisted_secret.inline_payload == {
+        "user": "cdc_sync",
+        "password": "cdc_sync",
+    }
     assert not hasattr(persisted_source_connection, "inline_payload")
     assert not hasattr(persisted_destination, "inline_payload")
     assert _secret_payload(engine, source_secret.id) == {

@@ -72,12 +72,13 @@ Este comando:
 
 - PostgreSQL local con tablas de prueba `customers` y `orders`
 - ZooKeeper y Kafka para mensajería
-- Debezium Connect con conector PostgreSQL configurable
+- Debezium Connect con conector PostgreSQL materializable desde el control plane
 - Worker base en Python que consume eventos CDC, los normaliza y los persiste en ClickHouse
 - ClickHouse como primer destino analítico versionado del pipeline
 
-Hasta que las issues #27 y #28 completen la materialización y la carga runtime desde el control plane,
-`worker/config/tables.json` y el env local del conector se mantienen solo como fixtures de desarrollo.
+Hasta que la issue #28 complete la carga runtime del worker desde el control plane, `worker/config/tables.json` se
+mantiene como fixture de desarrollo. El env local del conector se conserva como fixture de la validación e2e actual y
+para depuración local, pero no como fuente canónica del MVP.
 
 ## Documentación detallada
 

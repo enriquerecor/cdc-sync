@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 from cdc_sync_api.application.errors import (
     ControlPlaneConflictError,
     ControlPlaneNotFoundError,
+    KafkaConnectRequestError,
 )
 from cdc_sync_api.domain.control_plane import ControlPlaneValidationError
 
@@ -25,6 +26,11 @@ def execute_admin_operation(
     except ControlPlaneConflictError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+    except KafkaConnectRequestError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(exc),
         ) from exc
     except (ControlPlaneValidationError, TypeError) as exc:

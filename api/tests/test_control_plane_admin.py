@@ -1,16 +1,26 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Mapping
 from uuid import UUID
 
 from fastapi.testclient import TestClient
 
+from cdc_sync_api.application.errors import (
+    ControlPlaneConflictError,
+    KafkaConnectRequestError,
+)
+from cdc_sync_api.application.services.cdc_connector_compiler_registry import (
+    CdcConnectorCompilerRegistry,
+)
 from cdc_sync_api.application.dto.control_plane_assignment_dto import (
     WorkerConfigAssignmentDto,
 )
-from cdc_sync_api.application.errors import ControlPlaneConflictError
 from cdc_sync_api.application.use_cases.manage_control_plane import (
     ManageControlPlaneUseCase,
+)
+from cdc_sync_api.application.use_cases.materialize_cdc_connector import (
+    MaterializeCdcConnectorUseCase,
 )
 from cdc_sync_api.domain.control_plane import (
     Destination,
@@ -23,6 +33,10 @@ from cdc_sync_api.domain.control_plane import (
 from cdc_sync_api.entrypoints.http.app import build_app
 from cdc_sync_api.entrypoints.http.dependencies import (
     get_control_plane_admin_use_case,
+    get_materialize_cdc_connector_use_case,
+)
+from cdc_sync_api.infrastructure.cdc.debezium_postgres_connector_compiler import (
+    DebeziumPostgresConnectorCompiler,
 )
 
 
@@ -195,6 +209,83 @@ def test_conflicts_are_returned_for_duplicates_and_referenced_deletes() -> None:
     assert delete_config_response.status_code == 409
 
 
+def test_materializes_cdc_connector_from_source_connection() -> None:
+    client, kafka_connect_client = _build_client_with_cdc_materialization()
+    source_id = client.post(
+        "/api/v1/source-connections",
+        json=_source_connection_payload(),
+    ).json()["id"]
+    destination_id = client.post(
+        "/api/v1/destinations",
+        json=_destination_payload(),
+    ).json()["id"]
+    client.post(
+        "/api/v1/configs",
+        json=_config_payload(source_connection_id=source_id, destination_id=destination_id),
+    )
+
+    response = client.put(f"/api/v1/source-connections/{source_id}/cdc-connector")
+
+    assert response.status_code == 200
+    assert response.json()["source_connection_id"] == source_id
+    assert response.json()["source_type"] == "postgresql"
+    assert response.json()["connector_class"] == (
+        "io.debezium.connector.postgresql.PostgresConnector"
+    )
+    assert response.json()["topic_prefix"] == "cdc_sync"
+    assert response.json()["captured_tables"] == ["public.customers"]
+    assert "password" not in response.text
+    assert kafka_connect_client.calls[0][0] == f"cdc-sync-postgresql-{source_id}"
+    assert kafka_connect_client.calls[0][1]["database.password"] == "cdc_sync"
+
+
+def test_cdc_connector_materialization_returns_404_for_missing_source() -> None:
+    client, _kafka_connect_client = _build_client_with_cdc_materialization()
+
+    response = client.put(
+        "/api/v1/source-connections/2a3fb8e3-9ea0-4b1d-b6f6-99ab7ab3914e/cdc-connector"
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "No existe la conexión de origen indicada"}
+
+
+def test_cdc_connector_materialization_returns_422_for_invalid_config() -> None:
+    client, _kafka_connect_client = _build_client_with_cdc_materialization()
+    source_id = client.post(
+        "/api/v1/source-connections",
+        json=_source_connection_payload(),
+    ).json()["id"]
+
+    response = client.put(f"/api/v1/source-connections/{source_id}/cdc-connector")
+
+    assert response.status_code == 422
+    assert "tablas habilitadas" in response.json()["detail"]
+
+
+def test_cdc_connector_materialization_returns_502_for_kafka_connect_errors() -> None:
+    client, _kafka_connect_client = _build_client_with_cdc_materialization(
+        kafka_connect_client=_FailingKafkaConnectClient()
+    )
+    source_id = client.post(
+        "/api/v1/source-connections",
+        json=_source_connection_payload(),
+    ).json()["id"]
+    destination_id = client.post(
+        "/api/v1/destinations",
+        json=_destination_payload(),
+    ).json()["id"]
+    client.post(
+        "/api/v1/configs",
+        json=_config_payload(source_connection_id=source_id, destination_id=destination_id),
+    )
+
+    response = client.put(f"/api/v1/source-connections/{source_id}/cdc-connector")
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == "Kafka Connect no disponible"
+
+
 class InMemoryControlPlaneRepository:
     def __init__(self) -> None:
         self.secrets: dict[UUID, SecretReference] = {}
@@ -209,6 +300,9 @@ class InMemoryControlPlaneRepository:
 
     def save_secret_reference(self, secret_reference: SecretReference) -> None:
         self.secrets[secret_reference.id] = secret_reference
+
+    def get_secret_reference(self, secret_id: UUID) -> SecretReference | None:
+        return self.secrets.get(secret_id)
 
     def save_worker(self, worker: Worker) -> None:
         self._ensure_unique_worker_identifier(worker)
@@ -400,6 +494,48 @@ def _build_client() -> TestClient:
         lambda: ManageControlPlaneUseCase(repository)
     )
     return TestClient(app)
+
+
+def _build_client_with_cdc_materialization(
+    kafka_connect_client=None,
+) -> tuple[TestClient, "_KafkaConnectClient"]:
+    repository = InMemoryControlPlaneRepository()
+    app = build_app()
+    kafka_client = kafka_connect_client or _KafkaConnectClient()
+    app.dependency_overrides[get_control_plane_admin_use_case] = (
+        lambda: ManageControlPlaneUseCase(repository)
+    )
+    app.dependency_overrides[get_materialize_cdc_connector_use_case] = (
+        lambda: MaterializeCdcConnectorUseCase(
+            repository=repository,
+            compiler_registry=CdcConnectorCompilerRegistry(
+                (DebeziumPostgresConnectorCompiler(),)
+            ),
+            kafka_connect_client=kafka_client,
+        )
+    )
+    return TestClient(app), kafka_client
+
+
+class _KafkaConnectClient:
+    def __init__(self) -> None:
+        self.calls: tuple[tuple[str, dict[str, str]], ...] = ()
+
+    def put_connector_config(
+        self,
+        connector_name: str,
+        config: Mapping[str, str],
+    ) -> None:
+        self.calls = self.calls + ((connector_name, dict(config)),)
+
+
+class _FailingKafkaConnectClient:
+    def put_connector_config(
+        self,
+        connector_name: str,
+        config: Mapping[str, str],
+    ) -> None:
+        raise KafkaConnectRequestError("Kafka Connect no disponible")
 
 
 def _source_connection_payload(

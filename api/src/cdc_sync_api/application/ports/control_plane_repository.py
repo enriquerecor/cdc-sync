@@ -21,6 +21,9 @@ class ControlPlaneRepository(Protocol):
     def save_secret_reference(self, secret_reference: SecretReference) -> None:
         """Persiste una referencia de secreto validada."""
 
+    def get_secret_reference(self, secret_id: UUID) -> SecretReference | None:
+        """Obtiene una referencia de secreto para uso interno del control plane."""
+
     def save_worker(self, worker: Worker) -> None:
         """Persiste un worker administrativo validado."""
 
