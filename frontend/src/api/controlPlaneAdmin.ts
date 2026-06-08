@@ -15,6 +15,15 @@ export type DestinationCreateRequest =
   components["schemas"]["DestinationCreateRequest"];
 export type DestinationUpdateRequest =
   components["schemas"]["DestinationUpdateRequest"];
+export type SyncConfig = components["schemas"]["SyncConfigResponse"];
+export type SyncConfigRequest = components["schemas"]["SyncConfigRequest"];
+export type ConfiguredTableRequest =
+  components["schemas"]["ConfiguredTableRequest"];
+export type DestinationColumnRequest =
+  components["schemas"]["DestinationColumnRequest"];
+export type AssignmentResponse = components["schemas"]["AssignmentResponse"];
+export type CdcConnectorMaterializationResponse =
+  components["schemas"]["CdcConnectorMaterializationResponse"];
 
 export async function listWorkers(): Promise<Worker[]> {
   const { data, error, response } = await apiClient.GET("/api/v1/workers");
@@ -189,4 +198,109 @@ export async function deleteDestination(destinationId: string): Promise<void> {
   );
 
   assertSuccessfulResponse(response, error, "No se pudo eliminar el destino");
+}
+
+export async function listSyncConfigs(): Promise<SyncConfig[]> {
+  const { data, error, response } = await apiClient.GET("/api/v1/configs");
+
+  assertSuccessfulResponse(
+    response,
+    error,
+    "No se pudieron cargar las configuraciones",
+  );
+  return requireData(data, "configuraciones");
+}
+
+export async function createSyncConfig(
+  payload: SyncConfigRequest,
+): Promise<SyncConfig> {
+  const { data, error, response } = await apiClient.POST("/api/v1/configs", {
+    body: payload,
+  });
+
+  assertSuccessfulResponse(response, error, "No se pudo crear la configuración");
+  return requireData(data, "configuración creada");
+}
+
+export async function updateSyncConfig(
+  configId: string,
+  payload: SyncConfigRequest,
+): Promise<SyncConfig> {
+  const { data, error, response } = await apiClient.PUT(
+    "/api/v1/configs/{config_id}",
+    {
+      params: {
+        path: {
+          config_id: configId,
+        },
+      },
+      body: payload,
+    },
+  );
+
+  assertSuccessfulResponse(
+    response,
+    error,
+    "No se pudo actualizar la configuración",
+  );
+  return requireData(data, "configuración actualizada");
+}
+
+export async function deleteSyncConfig(configId: string): Promise<void> {
+  const { error, response } = await apiClient.DELETE(
+    "/api/v1/configs/{config_id}",
+    {
+      params: {
+        path: {
+          config_id: configId,
+        },
+      },
+    },
+  );
+
+  assertSuccessfulResponse(
+    response,
+    error,
+    "No se pudo eliminar la configuración",
+  );
+}
+
+export async function assignConfigToWorker(
+  workerInternalId: string,
+  configId: string,
+): Promise<AssignmentResponse> {
+  const { data, error, response } = await apiClient.PUT(
+    "/api/v1/workers/{worker_internal_id}/config-assignment",
+    {
+      params: {
+        path: {
+          worker_internal_id: workerInternalId,
+        },
+      },
+      body: {
+        config_id: configId,
+      },
+    },
+  );
+
+  assertSuccessfulResponse(response, error, "No se pudo asignar la configuración");
+  return requireData(data, "asignación publicada");
+}
+
+export async function materializeSourceCdcConnector(
+  sourceConnectionId: string,
+): Promise<CdcConnectorMaterializationResponse> {
+  const { data, error, response } = await apiClient.PUT(
+    "/api/v1/source-connections/{source_connection_id}/cdc-connector",
+    {
+      params: {
+        path: {
+          source_connection_id: sourceConnectionId,
+        },
+      },
+    },
+  );
+
+  assertSuccessfulResponse(response, error, "No se pudo materializar CDC");
+  return requireData(data, "conector CDC materializado");
 }
