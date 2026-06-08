@@ -7,6 +7,7 @@ ENV_FILE="$ROOT_DIR/.env"
 WORKER_TABLE_CONFIG_FILE="$ROOT_DIR/worker/config/tables.json"
 E2E_TABLE_CONFIG_PATH="config/tables.e2e.json"
 E2E_TABLE_CONFIG_FILE="$ROOT_DIR/worker/config/tables.e2e.json"
+CONNECTOR_ENV_FILE="$ROOT_DIR/infrastructure/debezium/connectors/generated/postgresql-source.local.env"
 E2E_CLICKHOUSE_DB_PREFIX="cdc_sync_analytics_e2e"
 CONNECTOR_CONFIG_FILE="$ROOT_DIR/infrastructure/debezium/connectors/generated/postgresql-source.local.json"
 POLL_INTERVAL_SECONDS="${E2E_POLL_INTERVAL_SECONDS:-2}"
@@ -52,7 +53,7 @@ ensure_e2e_table_config() {
     return 0
   fi
 
-  log "Generando configuracion e2e del worker en $E2E_TABLE_CONFIG_FILE"
+  log "Generando configuración e2e del worker en $E2E_TABLE_CONFIG_FILE"
   mkdir -p "$(dirname "$E2E_TABLE_CONFIG_FILE")"
   cat >"$E2E_TABLE_CONFIG_FILE" <<'EOF'
 {
@@ -342,7 +343,7 @@ wait_for_postgres_ready() {
 }
 
 render_connector_config() {
-  log "Renderizando configuracion de Debezium"
+  log "Renderizando configuración de Debezium"
   make -C "$ROOT_DIR" debezium-postgres-render >/dev/null
 
   if [[ ! -f "$CONNECTOR_CONFIG_FILE" ]]; then
@@ -352,7 +353,7 @@ render_connector_config() {
   local rendered_config=""
   rendered_config="$(<"$CONNECTOR_CONFIG_FILE")"
   log_verbose_pretty_json \
-    "Configuracion Debezium renderizada (secretos ocultos)" \
+    "Configuración Debezium renderizada (secretos ocultos)" \
     "$(redact_json "$rendered_config")"
 }
 
@@ -416,7 +417,7 @@ apply_connector_config() {
     ((attempt++))
   done
 
-  fail "Fallo en fase 'conector': no se pudo aplicar el conector '${DEBEZIUM_POSTGRES_CONNECTOR_NAME}'. Ultimo error: ${last_error}"
+  fail "Fallo en fase 'conector': no se pudo aplicar el conector '${DEBEZIUM_POSTGRES_CONNECTOR_NAME}'. Último error: ${last_error}"
 }
 
 wait_for_connector_running() {
@@ -453,7 +454,7 @@ wait_for_connector_running() {
   done
 
   if [[ -n "$status_json" ]]; then
-    log_pretty_json "Ultimo estado observado del conector" "$status_json"
+    log_pretty_json "Último estado observado del conector" "$status_json"
   fi
   fail "Fallo en fase 'conector': el conector '${DEBEZIUM_POSTGRES_CONNECTOR_NAME}' no alcanza RUNNING"
 }
@@ -536,22 +537,23 @@ log_compose_services() {
 prepare_local_environment() {
   ensure_e2e_table_config
 
-  if [[ -f "$ENV_FILE" && -f "$WORKER_TABLE_CONFIG_FILE" ]]; then
+  if [[ -f "$ENV_FILE" && -f "$WORKER_TABLE_CONFIG_FILE" && -f "$CONNECTOR_ENV_FILE" ]]; then
     return 0
   fi
 
-  log "Inicializando .env y worker/config/tables.json"
+  log "Inicializando entorno local compartido y fixtures temporales"
   make -C "$ROOT_DIR" env-init
 }
 
 load_environment() {
   if [[ ! -f "$ENV_FILE" ]]; then
-    fail "No se encuentra $ENV_FILE tras la inicializacion"
+    fail "No se encuentra $ENV_FILE tras la inicialización"
   fi
 
   set -a
   # shellcheck disable=SC1090
   source "$ENV_FILE"
+  source "$CONNECTOR_ENV_FILE"
   set +a
 
   POSTGRES_DB="${POSTGRES_DB:-cdc_sync}"
@@ -658,7 +660,7 @@ main() {
     "$customer_insert_version"
   customer_update_version="$(trim_output "$(clickhouse_query "SELECT max(version) FROM ${WORKER_CLICKHOUSE_DB}.customers WHERE id = ${customer_id} FORMAT TSVRaw")")"
   log_clickhouse_json_query \
-    "Historico de versiones de customer" \
+    "Histórico de versiones de customer" \
     "SELECT min(version) AS min_version, max(version) AS max_version, count() AS stored_rows FROM ${WORKER_CLICKHOUSE_DB}.customers WHERE id = ${customer_id} FORMAT JSON"
   wait_for_clickhouse_result \
     "actualizacion customers" \
@@ -705,7 +707,7 @@ main() {
     "$order_insert_version"
   order_update_version="$(trim_output "$(clickhouse_query "SELECT max(version) FROM ${WORKER_CLICKHOUSE_DB}.orders WHERE id = ${order_id} FORMAT TSVRaw")")"
   log_clickhouse_json_query \
-    "Historico de versiones de order" \
+    "Histórico de versiones de order" \
     "SELECT min(version) AS min_version, max(version) AS max_version, count() AS stored_rows FROM ${WORKER_CLICKHOUSE_DB}.orders WHERE id = ${order_id} FORMAT JSON"
   wait_for_clickhouse_result \
     "actualizacion orders" \
@@ -723,21 +725,21 @@ main() {
     "order_number" "$order_number"
 
   wait_for_clickhouse_number_greater_than \
-    "delete logico" \
+    "delete lógico" \
     "SELECT max(version) FROM ${WORKER_CLICKHOUSE_DB}.orders WHERE id = ${order_id} FORMAT TSVRaw" \
     "$order_update_version"
   log_clickhouse_json_query \
-    "Historico de versiones de order tras delete" \
+    "Histórico de versiones de order tras delete" \
     "SELECT min(version) AS min_version, max(version) AS max_version, count() AS stored_rows FROM ${WORKER_CLICKHOUSE_DB}.orders WHERE id = ${order_id} FORMAT JSON"
   log_clickhouse_json_query \
-    "Projection FINAL de order tras delete logico" \
+    "Projection FINAL de order tras delete lógico" \
     "SELECT id, customer_id, order_number, total_amount, status, created_at, deleted FROM ${WORKER_CLICKHOUSE_DB}.orders FINAL WHERE id = ${order_id} FORMAT JSON"
   wait_for_clickhouse_result \
-    "delete logico" \
+    "delete lógico" \
     "SELECT id, deleted, isNull(customer_id), isNull(order_number), isNull(total_amount), status, isNull(created_at) FROM ${WORKER_CLICKHOUSE_DB}.orders FINAL WHERE id = ${order_id} FORMAT TSVRaw" \
     "${order_id}"$'\t1\t1\t1\t1\t\t1'
 
-  log "Validacion e2e completada correctamente"
+  log "Validación e2e completada correctamente"
 }
 
 main "$@"

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from os import getenv
+from urllib.parse import urlparse
 import warnings
 
 from table_config import TableConfig, load_table_registry
@@ -30,6 +31,8 @@ class ClickHouseConfig:
 
 @dataclass(frozen=True)
 class WorkerConfig:
+    worker_id: str
+    control_plane_base_url: str
     kafka_bootstrap_servers: str
     kafka_topics: list[str]
     kafka_client_id: str
@@ -43,6 +46,8 @@ class WorkerConfig:
 
 
 def load_config() -> WorkerConfig:
+    worker_id = _read_required_env("WORKER_ID")
+    control_plane_base_url = _read_url_env("WORKER_CONTROL_PLANE_BASE_URL")
     kafka_bootstrap_servers = _read_required_env("WORKER_KAFKA_BOOTSTRAP_SERVERS")
     kafka_client_id = _read_required_env("WORKER_KAFKA_CLIENT_ID")
     kafka_group_id = _read_required_env("WORKER_KAFKA_GROUP_ID")
@@ -79,6 +84,8 @@ def load_config() -> WorkerConfig:
     _warn_if_clickhouse_security_port_combo_is_suspicious(clickhouse)
 
     return WorkerConfig(
+        worker_id=worker_id,
+        control_plane_base_url=control_plane_base_url,
         kafka_bootstrap_servers=kafka_bootstrap_servers,
         kafka_topics=kafka_topics,
         kafka_client_id=kafka_client_id,
@@ -115,6 +122,16 @@ def _read_positive_int_env(name: str) -> int:
     return _parse_positive_int(raw_value, name)
 
 
+def _read_url_env(name: str) -> str:
+    value = _read_required_env(name)
+    parsed_url = urlparse(value)
+
+    if parsed_url.scheme and parsed_url.netloc:
+        return value
+
+    raise ValueError(f"La variable {name} debe ser una URL con esquema y host")
+
+
 def _read_optional_positive_int_env(name: str, default: int) -> int:
     raw_value = _read_optional_env(name, str(default))
     return _parse_positive_int(raw_value, name)
@@ -138,7 +155,7 @@ def _read_optional_bool_env(name: str, default: bool) -> bool:
         return False
 
     raise ValueError(
-        f"La variable {name} debe ser un booleano valido ({', '.join(sorted(VALID_TRUE_ENV_VALUES | VALID_FALSE_ENV_VALUES))})"
+        f"La variable {name} debe ser un booleano válido ({', '.join(sorted(VALID_TRUE_ENV_VALUES | VALID_FALSE_ENV_VALUES))})"
     )
 
 
@@ -159,7 +176,7 @@ def _warn_if_clickhouse_security_port_combo_is_suspicious(
 ) -> None:
     if clickhouse.secure and clickhouse.port == COMMON_INSECURE_CLICKHOUSE_PORT:
         warnings.warn(
-            "WORKER_CLICKHOUSE_SECURE=true con WORKER_CLICKHOUSE_PORT=9000 es una combinacion no habitual. "
+            "WORKER_CLICKHOUSE_SECURE=true con WORKER_CLICKHOUSE_PORT=9000 es una combinación no habitual. "
             "Para el entorno local usa 9000/false y para ClickHouse Cloud 9440/true.",
             UserWarning,
             stacklevel=2,
@@ -171,7 +188,7 @@ def _warn_if_clickhouse_security_port_combo_is_suspicious(
 
     warnings.warn(
         f"WORKER_CLICKHOUSE_PORT={clickhouse.port} suele requerir WORKER_CLICKHOUSE_SECURE=true. "
-        "Revisa la configuracion si el destino es ClickHouse Cloud.",
+        "Revisa la configuración si el destino es ClickHouse Cloud.",
         UserWarning,
         stacklevel=2,
     )
@@ -194,7 +211,7 @@ def _build_kafka_topics(tables: dict[str, TableConfig]) -> list[str]:
 
     if not topics:
         raise ValueError(
-            "La configuracion debe incluir al menos una tabla habilitada con 'source.topic'"
+            "La configuración debe incluir al menos una tabla habilitada con 'source.topic'"
         )
 
     return topics

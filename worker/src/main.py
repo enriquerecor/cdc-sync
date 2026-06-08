@@ -19,7 +19,9 @@ def main() -> None:
 
     config = load_config()
     logging.info(
-        "worker_started bootstrap_servers=%s topics=%s client_id=%s group_id=%s table_config_version=%s tables=%s table_config_path=%s",
+        "worker_started worker_id=%s control_plane_base_url=%s bootstrap_servers=%s topics=%s client_id=%s group_id=%s table_config_version=%s tables=%s local_table_fixture_path=%s",
+        config.worker_id,
+        config.control_plane_base_url,
         config.kafka_bootstrap_servers,
         ",".join(config.kafka_topics),
         config.kafka_client_id,

@@ -41,6 +41,8 @@ class FakeSchemaManager:
 
 def test_main_wires_clickhouse_event_sink(monkeypatch) -> None:
     fake_config = WorkerConfig(
+        worker_id="local-worker",
+        control_plane_base_url="http://localhost:8000",
         kafka_bootstrap_servers="kafka:29092",
         kafka_topics=["cdc_sync.public.customers"],
         kafka_client_id="cdc-sync-worker",

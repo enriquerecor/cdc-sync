@@ -2,14 +2,14 @@
 
 set -euo pipefail
 
-if [[ $# -lt 2 || $# -gt 3 ]]; then
-  echo "Uso: $0 <template> <output> [env_file]" >&2
+if [[ $# -ne 3 ]]; then
+  echo "Uso: $0 <template> <output> <env_file>" >&2
   exit 1
 fi
 
 template_path="$1"
 output_path="$2"
-env_file_path="${3:-.env}"
+env_file_path="$3"
 
 if [[ ! -f "$template_path" ]]; then
   echo "Plantilla no encontrada: $template_path" >&2

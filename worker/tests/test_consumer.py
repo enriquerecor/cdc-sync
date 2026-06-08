@@ -61,6 +61,8 @@ class FailingCommitConsumer(FakeConsumer):
 @pytest.fixture
 def worker_config() -> WorkerConfig:
     return WorkerConfig(
+        worker_id="local-worker",
+        control_plane_base_url="http://localhost:8000",
         kafka_bootstrap_servers="kafka:29092",
         kafka_topics=["cdc_sync.public.customers"],
         kafka_client_id="cdc-sync-worker",

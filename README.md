@@ -14,6 +14,15 @@ FastAPI (control plane) -> PostgreSQL (control plane)
 Esta fase deja levantada la infraestructura base y valida la persistencia versionada extremo a extremo desde
 PostgreSQL hasta ClickHouse para las tablas configuradas en el worker.
 
+La configuración local queda separada en tres contratos:
+
+- `.env`: orquestación compartida del stack Docker.
+- `api/.env.example`: variables técnicas para ejecutar la API fuera de Docker.
+- `worker/.env.example`: variables técnicas del worker y fixtures temporales hasta la carga remota de #28.
+
+El conector Debezium local usa un fixture propio generado desde
+`infrastructure/debezium/connectors/postgresql/source.local.env.example`; no es la fuente de verdad funcional del MVP.
+
 ## Requisitos previos
 
 - Docker y Docker Compose
@@ -28,6 +37,7 @@ make env-init
 ```
 
 Este paso crea `.env` y `worker/config/tables.json` a partir de sus ejemplos versionados si todavía no existen.
+También crea el fixture local del conector en `infrastructure/debezium/connectors/generated/`.
 
 ## API REST del control plane
 
@@ -65,6 +75,9 @@ Este comando:
 - Debezium Connect con conector PostgreSQL configurable
 - Worker base en Python que consume eventos CDC, los normaliza y los persiste en ClickHouse
 - ClickHouse como primer destino analítico versionado del pipeline
+
+Hasta que las issues #25, #27 y #28 completen la gestión desde el control plane, `worker/config/tables.json` y el env
+local del conector se mantienen solo como fixtures de desarrollo.
 
 ## Documentación detallada
 

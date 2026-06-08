@@ -138,6 +138,7 @@ venv.bak/
 
 # Configuraciones renderizadas localmente para conectores Debezium
 infrastructure/debezium/connectors/generated/*.json
+infrastructure/debezium/connectors/generated/*.env
 !infrastructure/debezium/connectors/generated/.gitkeep
 
 # Spyder project settings

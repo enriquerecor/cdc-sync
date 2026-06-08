@@ -26,6 +26,9 @@ Preparar ficheros de entorno:
 make env-init
 ```
 
+La API no carga automáticamente un `.env` del repositorio. En Docker recibe sus variables desde `docker-compose.yml`.
+Para ejecutarla fuera de Docker puede usarse `api/.env.example` como plantilla local.
+
 Levantar PostgreSQL del control plane y la API:
 
 ```bash
@@ -55,6 +58,7 @@ Resultado esperado:
 - `API_PORT`
 - `API_NAME`
 - `API_VERSION`
+- `API_KAFKA_CONNECT_BASE_URL`
 - `CONTROL_PLANE_POSTGRES_DB`
 - `CONTROL_PLANE_POSTGRES_USER`
 - `CONTROL_PLANE_POSTGRES_PASSWORD`
@@ -65,6 +69,10 @@ Resultado esperado:
 - `API_DATABASE_USER`
 - `API_DATABASE_PASSWORD`
 - `API_DATABASE_ECHO`
+
+En Docker, `API_DATABASE_HOST`, `API_DATABASE_PORT`, `API_DATABASE_NAME`, `API_DATABASE_USER` y
+`API_DATABASE_PASSWORD` se inyectan con valores internos del stack. En ejecución local fuera de Docker, esos valores
+deben venir del entorno del proceso.
 
 ## Tests mínimos
 
