@@ -7,6 +7,7 @@ export type ApiError = {
 type HttpErrorPayload = {
   detail?: unknown;
   message?: unknown;
+  status?: unknown;
 };
 
 export function normalizeApiError(error: unknown): ApiError {
@@ -18,15 +19,38 @@ export function normalizeApiError(error: unknown): ApiError {
   }
 
   if (isHttpErrorPayload(error)) {
+    const status = extractStatus(error.status);
+
     return {
-      title: "La API rechazó la petición",
+      title: status
+        ? `La API rechazó la petición (${status})`
+        : "La API rechazó la petición",
       message: extractPayloadMessage(error),
+      status,
     };
   }
 
   return {
     title: "Error inesperado",
     message: "No se pudo interpretar la respuesta de la API",
+  };
+}
+
+export function createApiResponseError(
+  status: number,
+  payload: unknown,
+  fallbackMessage: string,
+): HttpErrorPayload {
+  if (isHttpErrorPayload(payload)) {
+    return {
+      ...payload,
+      status,
+    };
+  }
+
+  return {
+    status,
+    message: fallbackMessage,
   };
 }
 
@@ -52,6 +76,14 @@ function extractPayloadMessage(payload: HttpErrorPayload): string {
   }
 
   return "La API devolvió un error sin detalle";
+}
+
+function extractStatus(value: unknown): number | undefined {
+  if (typeof value !== "number") {
+    return undefined;
+  }
+
+  return value;
 }
 
 function stringifyUnknownMessage(value: unknown): string | null {
