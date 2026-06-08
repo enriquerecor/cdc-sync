@@ -30,7 +30,7 @@ endef
 
 .DEFAULT_GOAL := help
 
-.PHONY: help env-init api-up api-migrate api-logs api-health api-test worker-test-deps worker-test e2e-validate debezium-postgres-render debezium-postgres-apply debezium-postgres-status
+.PHONY: help env-init api-up api-migrate api-logs api-health api-test api-test-integration worker-test-deps worker-test e2e-validate debezium-postgres-render debezium-postgres-apply debezium-postgres-status
 
 help:
 	@echo "Objetivos disponibles:"
@@ -40,6 +40,7 @@ help:
 	@echo "  make api-logs"
 	@echo "  make api-health"
 	@echo "  make api-test"
+	@echo "  make api-test-integration"
 	@echo "  make worker-test-deps"
 	@echo "  make worker-test"
 	@echo "  make e2e-validate"
@@ -86,6 +87,44 @@ api-health:
 api-test:
 	@docker build --target test -f api/Dockerfile -t cdc-sync-api-test .
 	@docker run --rm cdc-sync-api-test
+
+api-test-integration:
+	@docker build --target test -f api/Dockerfile -t cdc-sync-api-test .
+	@set -euo pipefail; \
+	network_name="cdc-sync-api-repo-test"; \
+	postgres_name="cdc-sync-api-repo-test-postgres"; \
+	cleanup() { \
+		docker rm -f "$${postgres_name}" >/dev/null 2>&1 || true; \
+		docker network rm "$${network_name}" >/dev/null 2>&1 || true; \
+	}; \
+	cleanup; \
+	trap cleanup EXIT; \
+	docker network create "$${network_name}" >/dev/null; \
+	docker run --rm -d \
+		--name "$${postgres_name}" \
+		--network "$${network_name}" \
+		-e POSTGRES_DB=cdc_sync_control_plane_test \
+		-e POSTGRES_USER=cdc_sync_control_plane_test \
+		-e POSTGRES_PASSWORD=cdc_sync_control_plane_test \
+		postgres:16-alpine >/dev/null; \
+	for attempt in {1..30}; do \
+		if docker exec "$${postgres_name}" pg_isready \
+			-U cdc_sync_control_plane_test \
+			-d cdc_sync_control_plane_test >/dev/null 2>&1; then \
+			break; \
+		fi; \
+		if [[ "$${attempt}" == "30" ]]; then \
+			echo "PostgreSQL de integración no arrancó a tiempo" >&2; \
+			exit 1; \
+		fi; \
+		sleep 1; \
+	done; \
+	docker run --rm \
+		--network "$${network_name}" \
+		-e API_REPOSITORY_INTEGRATION_TESTS=true \
+		-e API_TEST_DATABASE_URL="postgresql+psycopg://cdc_sync_control_plane_test:cdc_sync_control_plane_test@$${postgres_name}:5432/cdc_sync_control_plane_test" \
+		cdc-sync-api-test \
+		pytest api/tests/test_control_plane_repository_integration.py -v
 
 worker-test-deps: $(WORKER_TEST_VENV_STAMP)
 	@echo "Entorno virtual del worker disponible en $(WORKER_TEST_VENV_DIR)"
