@@ -369,6 +369,24 @@ class DemoRunner:
         self._save_state(state)
         _print_ok("Workers arrancados")
 
+    def workers_up(self) -> None:
+        worker_containers = self._start_workers(
+            self._explicit_worker_ids(),
+            "Arrancando workers locales desde WORKER_IDS",
+        )
+        _print_ok(
+            "Workers arrancados: "
+            + ", ".join(worker_containers.values())
+        )
+
+    def workers_down(self) -> None:
+        worker_ids = self._explicit_worker_ids()
+        _print_step("Parando workers locales desde WORKER_IDS")
+        for worker_id in worker_ids:
+            self._remove_worker_container(_container_name(worker_id), report_missing=True)
+
+        _print_ok("Workers parados")
+
     def _start_workers(
         self,
         worker_ids: list[str],
@@ -466,6 +484,9 @@ class DemoRunner:
         raise DemoError(
             f"Workers de demo no soportados: {unsupported}. Valores válidos: {supported}"
         )
+
+    def _explicit_worker_ids(self) -> list[str]:
+        return _parse_worker_ids(self.env.get("WORKER_IDS"), "WORKER_IDS")
 
     def _state_worker_ids(self, state: dict[str, Any]) -> list[str]:
         worker_ids = state.get("worker_ids")
@@ -1706,6 +1727,8 @@ def _build_parser() -> argparse.ArgumentParser:
         "configure",
         "materialize",
         "workers",
+        "workers-up",
+        "workers-down",
         "changes",
         "assert",
         "all",
@@ -1725,6 +1748,8 @@ def main() -> int:
         "configure": runner.configure,
         "materialize": runner.materialize,
         "workers": runner.workers,
+        "workers-up": runner.workers_up,
+        "workers-down": runner.workers_down,
         "changes": runner.changes,
         "assert": runner.assert_state,
         "all": runner.all,

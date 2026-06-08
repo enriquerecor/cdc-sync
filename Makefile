@@ -30,7 +30,7 @@ endef
 
 .DEFAULT_GOAL := help
 
-.PHONY: help env-init api-up api-migrate api-logs api-health api-test api-test-integration frontend-install frontend-dev frontend-build frontend-api-types frontend-up frontend-logs worker-test-deps worker-test demo-up demo-migrate demo-configure demo-materialize demo-workers demo-changes demo-assert demo-local e2e-validate debezium-postgres-render debezium-postgres-apply debezium-postgres-status
+.PHONY: help env-init api-up api-migrate api-logs api-health api-test api-test-integration frontend-install frontend-dev frontend-build frontend-api-types frontend-up frontend-logs worker-test-deps worker-test workers-up workers-down demo-up demo-migrate demo-configure demo-materialize demo-workers demo-changes demo-assert demo-local e2e-validate debezium-postgres-render debezium-postgres-apply debezium-postgres-status
 
 help:
 	@echo "Objetivos disponibles:"
@@ -49,6 +49,8 @@ help:
 	@echo "  make frontend-logs"
 	@echo "  make worker-test-deps"
 	@echo "  make worker-test"
+	@echo "  make workers-up WORKER_IDS=crm-worker,sales-worker"
+	@echo "  make workers-down WORKER_IDS=crm-worker,sales-worker"
 	@echo "  make demo-up"
 	@echo "  make demo-migrate"
 	@echo "  make demo-configure"
@@ -164,6 +166,12 @@ worker-test-deps: $(WORKER_TEST_VENV_STAMP)
 worker-test: $(WORKER_TEST_VENV_STAMP)
 	@PYTHONPATH="worker/src" \
 		"$(WORKER_TEST_VENV_PYTHON)" -m pytest worker/tests -v
+
+workers-up:
+	@WORKER_IDS="$(WORKER_IDS)" $(DEMO_RUNNER) workers-up
+
+workers-down:
+	@WORKER_IDS="$(WORKER_IDS)" $(DEMO_RUNNER) workers-down
 
 demo-up:
 	@$(DEMO_RUNNER) up
