@@ -19,6 +19,9 @@ from cdc_sync_api.application.dto.control_plane_assignment_dto import (
 from cdc_sync_api.application.use_cases.manage_control_plane import (
     ManageControlPlaneUseCase,
 )
+from cdc_sync_api.application.use_cases.get_worker_runtime_config import (
+    GetWorkerRuntimeConfigUseCase,
+)
 from cdc_sync_api.application.use_cases.materialize_cdc_connector import (
     MaterializeCdcConnectorUseCase,
 )
@@ -34,6 +37,7 @@ from cdc_sync_api.entrypoints.http.app import build_app
 from cdc_sync_api.entrypoints.http.dependencies import (
     get_control_plane_admin_use_case,
     get_materialize_cdc_connector_use_case,
+    get_worker_runtime_config_use_case,
 )
 from cdc_sync_api.infrastructure.cdc.debezium_postgres_connector_compiler import (
     DebeziumPostgresConnectorCompiler,
@@ -115,6 +119,7 @@ def test_crud_operations_update_and_delete_administrative_entities() -> None:
 
     assert update_response.status_code == 200
     assert update_response.json()["worker_id"] == "worker-updated"
+    assert update_response.json()["kafka_group_id"] is None
     assert list_response.status_code == 200
     assert list_response.json()[0]["enabled"] is False
     assert delete_response.status_code == 204
@@ -207,6 +212,173 @@ def test_conflicts_are_returned_for_duplicates_and_referenced_deletes() -> None:
     delete_config_response = client.delete(f"/api/v1/configs/{config_id}")
 
     assert delete_config_response.status_code == 409
+
+
+def test_worker_rejects_effective_kafka_group_collisions() -> None:
+    client = _build_client()
+    first_response = client.post(
+        "/api/v1/workers",
+        json={
+            "worker_id": "orders",
+            "name": "Worker pedidos",
+            "enabled": True,
+        },
+    )
+
+    explicit_collision_response = client.post(
+        "/api/v1/workers",
+        json={
+            "worker_id": "invoices",
+            "name": "Worker facturas",
+            "kafka_group_id": "cdc-sync-worker-orders",
+            "enabled": True,
+        },
+    )
+    explicit_worker_response = client.post(
+        "/api/v1/workers",
+        json={
+            "worker_id": "billing",
+            "name": "Worker cobros",
+            "kafka_group_id": "cdc-sync-worker-custom",
+            "enabled": True,
+        },
+    )
+    derived_collision_response = client.post(
+        "/api/v1/workers",
+        json={
+            "worker_id": "custom",
+            "name": "Worker custom",
+            "enabled": True,
+        },
+    )
+    same_worker_update_response = client.put(
+        f"/api/v1/workers/{first_response.json()['id']}",
+        json={
+            "worker_id": "orders",
+            "name": "Worker pedidos actualizado",
+            "enabled": False,
+        },
+    )
+
+    assert first_response.status_code == 201
+    assert explicit_worker_response.status_code == 201
+    assert explicit_collision_response.status_code == 409
+    assert derived_collision_response.status_code == 409
+    assert same_worker_update_response.status_code == 200
+
+
+def test_missing_worker_update_returns_404_before_group_collision() -> None:
+    client = _build_client()
+    client.post(
+        "/api/v1/workers",
+        json={
+            "worker_id": "orders",
+            "name": "Worker pedidos",
+            "enabled": True,
+        },
+    )
+
+    response = client.put(
+        "/api/v1/workers/2a3fb8e3-9ea0-4b1d-b6f6-99ab7ab3914e",
+        json={
+            "worker_id": "invoices",
+            "name": "Worker inexistente",
+            "kafka_group_id": "cdc-sync-worker-orders",
+            "enabled": True,
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "No existe el worker indicado"}
+
+
+def test_worker_runtime_config_endpoint_returns_effective_contract() -> None:
+    client = _build_client_with_runtime_config()
+    worker_response = client.post(
+        "/api/v1/workers",
+        json={
+            "worker_id": "local-worker",
+            "name": "Worker local",
+            "enabled": True,
+        },
+    )
+    source_response = client.post(
+        "/api/v1/source-connections",
+        json=_source_connection_payload(),
+    )
+    destination_response = client.post(
+        "/api/v1/destinations",
+        json=_destination_payload(),
+    )
+    config_response = client.post(
+        "/api/v1/configs",
+        json=_config_payload(
+            source_connection_id=source_response.json()["id"],
+            destination_id=destination_response.json()["id"],
+        ),
+    )
+    client.put(
+        f"/api/v1/workers/{worker_response.json()['id']}/config-assignment",
+        json={"config_id": config_response.json()["id"]},
+    )
+
+    response = client.get("/workers/local-worker/config")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "contract_version": 1,
+        "worker": {"worker_id": "local-worker"},
+        "kafka": {
+            "bootstrap_servers": "kafka:29092",
+            "client_id": "cdc-sync-worker-local-worker",
+            "group_id": "cdc-sync-worker-local-worker",
+            "auto_offset_reset": "earliest",
+            "poll_timeout_ms": 1000,
+            "topics": ["cdc_sync.public.customers"],
+        },
+        "destination": {
+            "adapter": "clickhouse",
+            "host": "clickhouse",
+            "port": 9000,
+            "secure": False,
+            "database": "cdc_sync_analytics",
+            "credentials": {
+                "user": "cdc_sync",
+                "password": "cdc_sync",
+            },
+        },
+        "tables": {
+            "customers": {
+                "enabled": True,
+                "source": {
+                    "adapter": "debezium_postgres",
+                    "schema": "public",
+                    "table": "customers",
+                    "topic": "cdc_sync.public.customers",
+                },
+                "pk": ["id"],
+                "sync": {"mode": "realtime"},
+                "destination": {
+                    "table": "customers",
+                    "columns": [
+                        {"name": "id", "type": "UInt64", "nullable": False},
+                        {"name": "email", "type": "String", "nullable": True},
+                    ],
+                },
+            }
+        },
+    }
+    assert "credentials_secret_id" not in response.text
+    assert "database.password" not in response.text
+
+
+def test_worker_runtime_config_endpoint_returns_404_for_missing_worker() -> None:
+    client = _build_client_with_runtime_config()
+
+    response = client.get("/workers/missing-worker/config")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "No existe el worker indicado"}
 
 
 def test_materializes_cdc_connector_from_source_connection() -> None:
@@ -492,6 +664,24 @@ def _build_client() -> TestClient:
     app = build_app()
     app.dependency_overrides[get_control_plane_admin_use_case] = (
         lambda: ManageControlPlaneUseCase(repository)
+    )
+    return TestClient(app)
+
+
+def _build_client_with_runtime_config() -> TestClient:
+    repository = InMemoryControlPlaneRepository()
+    app = build_app()
+    app.dependency_overrides[get_control_plane_admin_use_case] = (
+        lambda: ManageControlPlaneUseCase(repository)
+    )
+    app.dependency_overrides[get_worker_runtime_config_use_case] = (
+        lambda: GetWorkerRuntimeConfigUseCase(
+            repository=repository,
+            kafka_bootstrap_servers="kafka:29092",
+            kafka_client_id_prefix="cdc-sync-worker",
+            kafka_auto_offset_reset="earliest",
+            kafka_poll_timeout_ms=1000,
+        )
     )
     return TestClient(app)
 

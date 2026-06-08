@@ -6,14 +6,13 @@ El control plane usa PostgreSQL como fuente de verdad administrativa para el MVP
 workers, conexiones de origen, destinos analíticos, configuraciones de tablas y la configuración efectiva asignada a
 cada worker.
 
-Esta fase no publica todavía endpoints de gestión ni el contrato runtime del worker. La API queda preparada para que
-las siguientes issues creen la administración HTTP, materialicen Kafka Connect y compilen `GET /workers/{id}/config`
-sin acoplar esos contratos externos al esquema interno.
+La API administrativa, la materialización de Kafka Connect y el contrato runtime del worker se construyen sobre este
+modelo sin acoplar esos contratos externos al esquema interno.
 
 ## Entidades
 
 - `secret_references`: referencia centralizada a credenciales.
-- `workers`: procesos stateless identificables por el futuro `WORKER_ID`.
+- `workers`: procesos stateless identificables por `WORKER_ID`, con `kafka_group_id` explícito opcional.
 - `source_connections`: conexiones de origen PostgreSQL.
 - `destinations`: destinos ClickHouse.
 - `configs`: configuraciones administrativas de sincronización `realtime`.
@@ -25,6 +24,10 @@ sin acoplar esos contratos externos al esquema interno.
 `worker_config_assignments.worker_id` es clave primaria para asegurar que cada worker tiene como máximo una
 configuración efectiva. No existe un documento singleton de configuración: cada configuración es una entidad propia y
 la asignación al worker es explícita.
+
+`workers.kafka_group_id` permite fijar un grupo de consumo Kafka específico para un worker. Si no se informa, el
+contrato runtime deriva el grupo efectivo como `cdc-sync-worker-{worker_id}`. La API administrativa valida los grupos
+efectivos de todos los workers para evitar colisiones entre grupos explícitos y derivados.
 
 ## Restricciones del MVP
 

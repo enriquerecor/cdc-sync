@@ -86,6 +86,7 @@ class Worker:
     worker_id: str
     name: str
     description: str | None = None
+    kafka_group_id: str | None = None
     enabled: bool = True
 
     def __post_init__(self) -> None:
@@ -100,6 +101,11 @@ class Worker:
             self,
             "description",
             _normalize_optional_text(self.description, "description"),
+        )
+        object.__setattr__(
+            self,
+            "kafka_group_id",
+            _normalize_optional_text(self.kafka_group_id, "kafka_group_id"),
         )
         _ensure_bool(self.enabled, "enabled")
 

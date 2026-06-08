@@ -8,6 +8,7 @@
 - separación mínima entre dominio, aplicación, HTTP e infraestructura
 - routing base y `healthcheck`
 - API administrativa mínima para workers, conexiones, destinos, configuraciones y asignaciones efectivas
+- contrato runtime por worker para el data plane
 
 ## Estructura
 
@@ -95,8 +96,77 @@ PUT /api/v1/workers/{worker_internal_id}/config-assignment
 }
 ```
 
-En esta fase, asignar o editar una configuración solo cambia la fuente de verdad administrativa. El worker seguirá
-aplicando cambios tras reinicio manual cuando se implemente el contrato runtime remoto de las siguientes issues.
+Asignar o editar una configuración cambia la fuente de verdad administrativa. El endpoint runtime ya puede compilar la
+configuración efectiva, pero el worker no la consumirá hasta #28; hasta entonces seguirá usando el fixture local.
+
+Los workers aceptan `kafka_group_id` opcional en creación y actualización. Si no se informa, el contrato runtime deriva
+el grupo efectivo como `cdc-sync-worker-{worker_id}`. La API rechaza workers cuyo grupo efectivo colisione con el de
+otro worker, tanto si el grupo viene persistido como si se deriva.
+
+## Contrato runtime del worker
+
+El endpoint de data plane vive fuera de `/api/v1`:
+
+```http
+GET /workers/{worker_id}/config
+```
+
+`worker_id` es el identificador operativo usado por `WORKER_ID`, no el UUID interno administrativo. La respuesta
+devuelve solo lo que el worker necesita para consumir Kafka y escribir en ClickHouse:
+
+```json
+{
+  "contract_version": 1,
+  "worker": {
+    "worker_id": "local-worker"
+  },
+  "kafka": {
+    "bootstrap_servers": "kafka:29092",
+    "client_id": "cdc-sync-worker-local-worker",
+    "group_id": "cdc-sync-worker-local-worker",
+    "auto_offset_reset": "earliest",
+    "poll_timeout_ms": 1000,
+    "topics": ["cdc_sync.public.customers"]
+  },
+  "destination": {
+    "adapter": "clickhouse",
+    "host": "clickhouse",
+    "port": 9000,
+    "secure": false,
+    "database": "cdc_sync_analytics",
+    "credentials": {
+      "user": "cdc_sync",
+      "password": "cdc_sync"
+    }
+  },
+  "tables": {
+    "customers": {
+      "enabled": true,
+      "source": {
+        "adapter": "debezium_postgres",
+        "schema": "public",
+        "table": "customers",
+        "topic": "cdc_sync.public.customers"
+      },
+      "pk": ["id"],
+      "sync": {
+        "mode": "realtime"
+      },
+      "destination": {
+        "table": "customers",
+        "columns": [
+          { "name": "id", "type": "UInt64", "nullable": false }
+        ]
+      }
+    }
+  }
+}
+```
+
+El contrato incluye solo tablas habilitadas de una configuración habilitada. No expone credenciales de origen,
+`credentials_secret_id`, payloads internos de secretos ni configuración Debezium o Kafka Connect. Si el worker no
+existe o no tiene configuración efectiva, la API devuelve `404`. Si la configuración administrativa publicada está rota
+o es incompatible con el runtime, devuelve `422`.
 
 ## Materialización CDC
 
@@ -134,6 +204,10 @@ devuelve `422`. Si Kafka Connect no está disponible o rechaza la configuración
 - `API_NAME`
 - `API_VERSION`
 - `API_KAFKA_CONNECT_BASE_URL`
+- `API_WORKER_KAFKA_BOOTSTRAP_SERVERS`
+- `API_WORKER_KAFKA_CLIENT_ID_PREFIX`
+- `API_WORKER_KAFKA_AUTO_OFFSET_RESET`
+- `API_WORKER_KAFKA_POLL_TIMEOUT_MS`
 - `CONTROL_PLANE_POSTGRES_DB`
 - `CONTROL_PLANE_POSTGRES_USER`
 - `CONTROL_PLANE_POSTGRES_PASSWORD`
@@ -174,7 +248,7 @@ no apunta a una base de datos de test.
 
 La API mantiene separadas las capas de dominio, aplicación, HTTP e infraestructura. El modelo persistente del control
 plane vive en PostgreSQL bajo el schema `control_plane` y representa workers, conexiones de origen, destinos,
-configuraciones de tablas y asignación efectiva por worker.
+configuraciones de tablas y asignación efectiva por worker. El contrato runtime del worker se compila desde ese modelo,
+pero no expone sus identificadores internos ni los detalles de materialización de Kafka Connect.
 
-Esta fase no expone todavía el contrato runtime del worker. La documentación del modelo y sus límites de MVP está en
-`docs/control-plane-model.md`.
+La documentación del modelo y sus límites de MVP está en `docs/control-plane-model.md`.

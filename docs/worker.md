@@ -23,8 +23,10 @@ El worker arranca ya con un contrato técnico propio:
 - `WORKER_ID`
 - `WORKER_CONTROL_PLANE_BASE_URL`
 
-La petición real a `GET /workers/{id}/config` queda fuera de esta fase. Hasta #28, el JSON local y las variables de
-ClickHouse se mantienen como fixture de desarrollo para no romper la validación extremo a extremo.
+La API ya expone el contrato runtime mediante `GET /workers/{id}/config`, donde `{id}` es el `WORKER_ID` operativo.
+La conexión real del worker contra ese endpoint queda fuera de esta fase y se implementará en #28. Hasta entonces, el
+JSON local y las variables de ClickHouse se mantienen como fixture de desarrollo para no romper la validación extremo a
+extremo.
 
 Contrato mínimo actual del fixture de tablas:
 

@@ -15,6 +15,7 @@ class WorkerRequestDto:
     worker_id: str
     name: str
     description: str | None
+    kafka_group_id: str | None
     enabled: bool
 
 
@@ -92,4 +93,3 @@ class SyncConfigRequestDto:
 @dataclass(frozen=True)
 class AssignmentRequestDto:
     config_id: UUID
-

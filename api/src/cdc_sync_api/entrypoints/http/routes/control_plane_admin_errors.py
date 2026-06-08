@@ -13,7 +13,7 @@ from cdc_sync_api.domain.control_plane import ControlPlaneValidationError
 OperationResult = TypeVar("OperationResult")
 
 
-def execute_admin_operation(
+def execute_control_plane_operation(
     operation: Callable[[], OperationResult],
 ) -> OperationResult:
     try:
@@ -35,3 +35,6 @@ def execute_admin_operation(
         ) from exc
     except (ControlPlaneValidationError, TypeError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+execute_admin_operation = execute_control_plane_operation

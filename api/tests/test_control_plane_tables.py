@@ -30,6 +30,14 @@ def test_workers_have_unique_runtime_identifier() -> None:
     assert "uq_workers_worker_id" in _constraint_names(workers, UniqueConstraint)
 
 
+def test_workers_allow_optional_explicit_kafka_group_id() -> None:
+    constraints = _constraint_names(workers, CheckConstraint)
+
+    assert workers.c.kafka_group_id.nullable is True
+    assert "ck_workers_kafka_group_id" in constraints
+    assert "uq_workers_kafka_group_id" in _constraint_names(workers, UniqueConstraint)
+
+
 def test_assignment_has_worker_primary_key_for_one_effective_config() -> None:
     assert [column.name for column in worker_config_assignments.primary_key.columns] == [
         "worker_id"
