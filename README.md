@@ -9,16 +9,20 @@ PostgreSQL (OLTP) -> Debezium -> Kafka -> Worker (Python) -> ClickHouse
                       ^
                       |
 FastAPI (control plane) -> PostgreSQL (control plane)
+                      ^
+                      |
+Frontend administrativo (React)
 ```
 
-Esta fase deja levantada la infraestructura base y conecta el worker stateless con el contrato runtime publicado por el
-control plane.
+El repositorio contiene la vertical local del MVP: API del control plane, consola administrativa, infraestructura CDC,
+workers stateless y destino analítico ClickHouse.
 
-La configuración local queda separada en tres contratos:
+La configuración local queda separada en varios contratos:
 
 - `.env`: orquestación compartida del stack Docker.
-- `api/.env.example`: variables técnicas para ejecutar la API fuera de Docker.
-- `worker/.env.example`: variables técnicas mínimas para ejecutar el worker fuera de Docker.
+- `frontend/.env`: variables consumidas por Vite en desarrollo local.
+- `api/.env.example`: variables técnicas para ejecutar la API fuera de Docker, si se necesita.
+- `worker/.env.example`: variables técnicas mínimas para ejecutar el worker fuera de Docker, si se necesita.
 
 El conector Debezium local usa un fixture propio generado desde
 `infrastructure/debezium/connectors/postgresql/source.local.env.example`; no es la fuente de verdad funcional del MVP.
@@ -30,25 +34,55 @@ El conector Debezium local usa un fixture propio generado desde
 
 ## Inicio rápido
 
-Preparar los ficheros locales de entorno:
+Después de clonar el repositorio, preparar los ficheros locales de entorno:
 
 ```bash
 make env-init
 ```
 
-Este paso crea `.env` si todavía no existe. También crea el fixture local del conector en
-`infrastructure/debezium/connectors/generated/`.
+Este paso crea, sin sobrescribir si ya existen:
+
+- `.env`;
+- `frontend/.env`;
+- `infrastructure/debezium/connectors/generated/postgresql-source.local.env`.
+
+## Consola administrativa
+
+La ruta recomendada para levantar la consola conectada a la API local es:
+
+```bash
+make env-init
+make api-migrate
+make frontend-up
+make api-health
+```
+
+Después, abrir:
+
+```text
+http://localhost:5173
+```
+
+Resultado esperado:
+
+- la API responde correctamente en `http://localhost:8000`;
+- la consola carga con el indicador de API operativo;
+- las pestañas `Workers`, `Orígenes` y `Destinos` muestran sus listados o estados vacíos sin errores.
+
+`make frontend-up` arranca el frontend de desarrollo con Docker Compose y levanta sus dependencias declaradas. Las
+migraciones del control plane siguen siendo un paso explícito para evitar que la UI apunte a una base sin esquema.
 
 ## API REST del control plane
 
-La milestone `API REST` introduce un backend FastAPI desacoplado del worker y con persistencia propia en PostgreSQL.
+El backend FastAPI vive en `api/`, está desacoplado del worker y persiste la configuración administrativa en su propio
+PostgreSQL.
 
 Flujo mínimo local:
 
 ```bash
 make env-init
-make api-up
 make api-migrate
+make api-up
 make api-health
 ```
 
@@ -59,21 +93,24 @@ La documentación detallada del backend está en [docs/api.md](docs/api.md).
 La base del frontend vive en `frontend/` y usa Vite, React, TypeScript y Mantine para la UI administrativa mínima del
 control plane.
 
-Flujo local con npm:
+Flujo local con npm, útil si no se quiere usar el servicio Docker del frontend:
 
 ```bash
 make env-init
-make api-up
 make api-migrate
+make api-up
 make frontend-install
-make frontend-api-types
 make frontend-dev
 ```
+
+`make frontend-api-types` solo es necesario cuando cambia el contrato OpenAPI y se quieren regenerar los tipos del
+frontend.
 
 Flujo local con Docker Compose:
 
 ```bash
 make env-init
+make api-migrate
 make frontend-up
 make frontend-logs
 ```
@@ -81,26 +118,26 @@ make frontend-logs
 El servicio está integrado en el stack local y puede arrancarse con `docker compose up frontend` o junto al resto del
 stack. La documentación detallada está en [frontend/README.md](frontend/README.md).
 
-La demo e2e local levanta la vertical multi-worker desde configuración API:
+## Validación end-to-end
+
+Cuando la consola y la API ya levantan correctamente, la validación reproducible de la vertical completa se ejecuta con:
 
 ```bash
 make e2e-validate
 ```
 
-Este comando delega en `make demo-local`. También puede ejecutarse por pasos; la documentación detallada está en
+No hay un segundo flujo separado de demo: esta validación ejecuta la demo local multi-worker. El recorrido crea
+configuración por API, materializa Debezium, arranca workers, genera cambios en PostgreSQL y valida la convergencia en
+ClickHouse.
+
+La validación usa tres workers dinámicos:
+
+- `crm-worker`: cuentas, contactos, oportunidades y actividades.
+- `sales-worker`: pedidos, líneas, facturas y pagos.
+- `operations-worker`: proveedores, productos, almacenes y movimientos.
+
+También puede ejecutarse por pasos si se desea. La documentación detallada está en
 [docs/local-stack.md](docs/local-stack.md).
-
-## Qué incluye esta fase
-
-- PostgreSQL local con tablas de prueba `customers`, `orders` y un fixture ERP/CRM multi-módulo para la demo e2e
-- ZooKeeper y Kafka para mensajería
-- Debezium Connect con conector PostgreSQL materializable desde el control plane
-- Worker stateless en Python que carga su configuración runtime desde la API, consume eventos CDC, los normaliza y los
-  persiste en ClickHouse
-- ClickHouse como primer destino analítico versionado del pipeline
-
-El worker no usa JSON local de tablas ni variables locales de Kafka o ClickHouse como fuente funcional. El env local del
-conector se conserva como fixture de depuración local, pero no como fuente canónica del MVP.
 
 ## Documentación detallada
 
@@ -111,21 +148,4 @@ conector se conserva como fixture de depuración local, pero no como fuente can�
 - [Worker](docs/worker.md)
 - [ClickHouse](docs/clickhouse.md)
 - [API REST](docs/api.md)
-
-## Demo local multi-worker
-
-La demo oficial usa tres workers dinámicos:
-
-- `crm-worker`: cuentas, contactos, oportunidades y actividades.
-- `sales-worker`: pedidos, líneas, facturas y pagos.
-- `operations-worker`: proveedores, productos, almacenes y movimientos.
-
-Ejecución completa:
-
-```bash
-make env-init
-make demo-local
-```
-
-El flujo manual con `docker compose`, `make debezium-postgres-apply` y consultas directas sigue disponible para
-depuración, pero la fuente de verdad funcional de la demo es la configuración creada por la API.
+- [Modelo del control plane](docs/control-plane-model.md)

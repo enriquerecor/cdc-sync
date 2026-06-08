@@ -7,11 +7,14 @@ plane: workers, conexiones de origen y destinos analíticos.
 
 ## Configuración
 
-Crear el fichero local de entorno:
+Crear los ficheros locales de entorno desde la raíz del repositorio:
 
 ```bash
 make env-init
 ```
+
+Este comando crea `frontend/.env` desde `frontend/.env.example` si todavía no existe. También prepara el `.env` general
+del stack Docker y el fixture local de Debezium.
 
 También puede crearse manualmente:
 
@@ -25,11 +28,13 @@ Variable principal:
 
 ## Desarrollo con npm
 
-Arrancar la API y aplicar migraciones:
+Preparar la base del control plane, arrancar la API y comprobar que responde:
 
 ```bash
-make api-up
+make env-init
 make api-migrate
+make api-up
+make api-health
 ```
 
 Instalar dependencias y arrancar Vite:
@@ -64,9 +69,11 @@ runtime.
 
 ## Desarrollo con Docker Compose
 
-El frontend está integrado en el stack local como servicio de desarrollo:
+El frontend está integrado en el stack local como servicio de desarrollo. Ruta recomendada:
 
 ```bash
+make env-init
+make api-migrate
 make frontend-up
 make frontend-logs
 ```
@@ -76,6 +83,9 @@ También puede arrancarse directamente:
 ```bash
 docker compose up frontend
 ```
+
+`make frontend-up` levanta el frontend y sus dependencias declaradas, pero no aplica migraciones. Por eso
+`make api-migrate` debe ejecutarse antes en entornos nuevos.
 
 El servicio usa `FRONTEND_API_BASE_URL` desde `.env` para inyectar `VITE_API_BASE_URL` en Vite. Esta imagen es solo de
 desarrollo; no incluye Nginx, build estático productivo ni configuración runtime para producción.
