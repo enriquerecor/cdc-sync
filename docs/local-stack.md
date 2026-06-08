@@ -50,9 +50,18 @@ Abrir:
 http://localhost:5173
 ```
 
-La consola permite gestionar workers, conexiones de origen y destinos analíticos. Las configuraciones de tablas y
-asignaciones efectivas forman parte de la API y de la demo e2e, pero la pestaña de configuraciones sigue como
-placeholder de la siguiente fase de UI.
+La consola permite gestionar workers, conexiones de origen, destinos analíticos y configuraciones de tablas. Desde la
+pestaña de configuraciones también se puede asignar una configuración efectiva a un worker, materializar el conector CDC
+de un origen y consultar el contrato runtime que consumirá el worker al arrancar.
+
+Flujo mínimo de demo desde la interfaz:
+
+1. Crear o reutilizar un worker, un origen PostgreSQL y un destino ClickHouse.
+2. Crear una configuración con tablas, claves primarias y columnas destino.
+3. Asignar la configuración al worker.
+4. Materializar CDC para el origen.
+5. Reiniciar manualmente el worker con su `WORKER_ID`.
+6. Consultar `GET /workers/{worker_id}/config` desde la vista runtime.
 
 ## Demo end-to-end
 

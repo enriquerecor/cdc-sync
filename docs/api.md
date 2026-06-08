@@ -128,9 +128,8 @@ Los workers aceptan `kafka_group_id` opcional en creación y actualización. Si 
 el grupo efectivo como `cdc-sync-worker-{worker_id}`. La API rechaza workers cuyo grupo efectivo colisione con el de
 otro worker, tanto si el grupo viene persistido como si se deriva.
 
-La consola administrativa consume actualmente los CRUD de workers, conexiones de origen y destinos. La gestión visual
-de configuraciones, asignaciones y materialización CDC queda para la siguiente fase de frontend, aunque esos endpoints
-ya formen parte del contrato de la API y de la demo e2e.
+La consola administrativa consume estos endpoints para gestionar entidades base, configuraciones, asignaciones,
+materialización CDC y consulta del contrato runtime publicado.
 
 ## Contrato runtime del worker
 
