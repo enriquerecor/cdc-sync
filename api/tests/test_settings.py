@@ -52,6 +52,31 @@ def test_settings_uses_worker_kafka_runtime_defaults(monkeypatch) -> None:
     assert settings.worker_kafka_poll_timeout_ms == 1000
 
 
+def test_settings_uses_cors_allowed_origin_defaults(monkeypatch) -> None:
+    monkeypatch.delenv("API_CORS_ALLOWED_ORIGINS", raising=False)
+
+    settings = Settings()
+
+    assert settings.cors_allowed_origins == [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+
+
+def test_settings_reads_cors_allowed_origins_from_environment(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "API_CORS_ALLOWED_ORIGINS",
+        " http://localhost:3000, http://127.0.0.1:3000 ",
+    )
+
+    settings = Settings()
+
+    assert settings.cors_allowed_origins == [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
+
+
 @pytest.mark.parametrize(
     ("env_name", "env_value"),
     [
@@ -59,6 +84,7 @@ def test_settings_uses_worker_kafka_runtime_defaults(monkeypatch) -> None:
         ("API_WORKER_KAFKA_CLIENT_ID_PREFIX", "   "),
         ("API_WORKER_KAFKA_AUTO_OFFSET_RESET", "middle"),
         ("API_WORKER_KAFKA_POLL_TIMEOUT_MS", "0"),
+        ("API_CORS_ALLOWED_ORIGINS", "   "),
     ],
 )
 def test_settings_rejects_invalid_worker_kafka_runtime_values(

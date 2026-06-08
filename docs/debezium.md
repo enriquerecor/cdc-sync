@@ -5,7 +5,7 @@
 - servicio base de Kafka Connect con imagen de Debezium
 - materialización canónica desde el control plane mediante adapter Debezium PostgreSQL
 - conector PostgreSQL configurable por plantilla solo como fixture local de depuración
-- captura de cambios de `public.customers` y `public.orders`
+- captura de cambios de las tablas habilitadas en las configuraciones del control plane
 
 ## Arranque de Connect
 
@@ -47,6 +47,9 @@ La API:
 - usa `DebeziumPostgresConnectorCompiler` para `source_type = postgresql`;
 - une las tablas habilitadas de configs habilitadas que usan ese origen;
 - aplica la configuración en Kafka Connect con `PUT /connectors/<name>/config`.
+
+En la demo multi-worker, esa unión incluye las tablas ERP/CRM asignadas a `crm-worker`, `sales-worker` y
+`operations-worker`.
 
 PostgreSQL es el primer adapter Debezium implementado, no una dependencia del caso de uso. En futuras fases se podrán
 añadir compiladores para MySQL u otros orígenes OLTP sin cambiar el flujo administrativo.

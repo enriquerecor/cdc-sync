@@ -1,6 +1,8 @@
 SHELL := /bin/bash
 
 ENV_FILE ?= .env
+FRONTEND_ENV_TEMPLATE := frontend/.env.example
+FRONTEND_ENV_FILE := frontend/.env
 WORKER_TEST_VENV_DIR := .venv
 WORKER_TEST_VENV_PYTHON := $(WORKER_TEST_VENV_DIR)/bin/python
 WORKER_TEST_VENV_STAMP := $(WORKER_TEST_VENV_DIR)/.worker-test-installed
@@ -10,6 +12,7 @@ POSTGRES_CONNECTOR_ENV_FILE := infrastructure/debezium/connectors/generated/post
 POSTGRES_CONNECTOR_OUTPUT := infrastructure/debezium/connectors/generated/postgresql-source.local.json
 CONNECT_RETRY_ATTEMPTS ?= 15
 CONNECT_RETRY_DELAY_SECONDS ?= 2
+DEMO_RUNNER := python3 infrastructure/e2e/demo_local.py
 
 define require_env_file
 	@if [[ ! -f "$(ENV_FILE)" ]]; then \
@@ -27,7 +30,7 @@ endef
 
 .DEFAULT_GOAL := help
 
-.PHONY: help env-init api-up api-migrate api-logs api-health api-test api-test-integration worker-test-deps worker-test e2e-validate debezium-postgres-render debezium-postgres-apply debezium-postgres-status
+.PHONY: help env-init api-up api-migrate api-logs api-health api-test api-test-integration frontend-install frontend-dev frontend-build frontend-api-types frontend-up frontend-logs worker-test-deps worker-test demo-up demo-migrate demo-configure demo-materialize demo-workers demo-changes demo-assert demo-local e2e-validate debezium-postgres-render debezium-postgres-apply debezium-postgres-status
 
 help:
 	@echo "Objetivos disponibles:"
@@ -38,8 +41,22 @@ help:
 	@echo "  make api-health"
 	@echo "  make api-test"
 	@echo "  make api-test-integration"
+	@echo "  make frontend-install"
+	@echo "  make frontend-dev"
+	@echo "  make frontend-build"
+	@echo "  make frontend-api-types"
+	@echo "  make frontend-up"
+	@echo "  make frontend-logs"
 	@echo "  make worker-test-deps"
 	@echo "  make worker-test"
+	@echo "  make demo-up"
+	@echo "  make demo-migrate"
+	@echo "  make demo-configure"
+	@echo "  make demo-materialize"
+	@echo "  make demo-workers"
+	@echo "  make demo-changes"
+	@echo "  make demo-assert"
+	@echo "  make demo-local"
 	@echo "  make e2e-validate"
 	@echo "  make debezium-postgres-render"
 	@echo "  make debezium-postgres-apply"
@@ -58,6 +75,12 @@ env-init:
 		mkdir -p "$$(dirname "$(POSTGRES_CONNECTOR_ENV_FILE)")"; \
 		cp "$(POSTGRES_CONNECTOR_ENV_TEMPLATE)" "$(POSTGRES_CONNECTOR_ENV_FILE)"; \
 		echo "$(POSTGRES_CONNECTOR_ENV_FILE) creado a partir de $(POSTGRES_CONNECTOR_ENV_TEMPLATE)"; \
+	fi
+	@if [[ -f "$(FRONTEND_ENV_FILE)" ]]; then \
+		echo "$(FRONTEND_ENV_FILE) ya existe. No se sobrescribe."; \
+	else \
+		cp "$(FRONTEND_ENV_TEMPLATE)" "$(FRONTEND_ENV_FILE)"; \
+		echo "$(FRONTEND_ENV_FILE) creado a partir de $(FRONTEND_ENV_TEMPLATE)"; \
 	fi
 
 api-up:
@@ -117,6 +140,24 @@ api-test-integration:
 		cdc-sync-api-test \
 		pytest api/tests/test_control_plane_repository_integration.py -v
 
+frontend-install:
+	@npm --prefix frontend ci
+
+frontend-dev:
+	@npm --prefix frontend run dev
+
+frontend-build:
+	@npm --prefix frontend run build
+
+frontend-api-types:
+	@npm --prefix frontend run api:types
+
+frontend-up:
+	@docker compose up -d --build frontend
+
+frontend-logs:
+	@docker compose logs -f frontend
+
 worker-test-deps: $(WORKER_TEST_VENV_STAMP)
 	@echo "Entorno virtual del worker disponible en $(WORKER_TEST_VENV_DIR)"
 
@@ -124,10 +165,33 @@ worker-test: $(WORKER_TEST_VENV_STAMP)
 	@PYTHONPATH="worker/src" \
 		"$(WORKER_TEST_VENV_PYTHON)" -m pytest worker/tests -v
 
+demo-up:
+	@$(DEMO_RUNNER) up
+
+demo-migrate:
+	@$(DEMO_RUNNER) migrate
+
+demo-configure:
+	@$(DEMO_RUNNER) configure
+
+demo-materialize:
+	@$(DEMO_RUNNER) materialize
+
+demo-workers:
+	@$(DEMO_RUNNER) workers
+
+demo-changes:
+	@$(DEMO_RUNNER) changes
+
+demo-assert:
+	@$(DEMO_RUNNER) assert
+
+demo-local:
+	@$(DEMO_RUNNER) all
+
 e2e-validate:
-	@echo "make e2e-validate está obsoleto temporalmente: dependía del fixture JSON local eliminado en #28." >&2
-	@echo "La validación completa de la vertical multi-worker queda delegada a la issue #33." >&2
-	@exit 1
+	@$(MAKE) demo-local
+
 
 $(WORKER_TEST_VENV_PYTHON):
 	@python3 -m venv "$(WORKER_TEST_VENV_DIR)"

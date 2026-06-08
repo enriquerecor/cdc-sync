@@ -1,0 +1,33 @@
+{
+  "name": "cdc-sync-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "api:types": "openapi-typescript ${OPENAPI_BASE_URL:-http://localhost:8000}/openapi.json -o src/api/generated/openapi.d.ts"
+  },
+  "dependencies": {
+    "@mantine/core": "^9.3.0",
+    "@mantine/form": "^9.3.0",
+    "@mantine/hooks": "^9.3.0",
+    "@mantine/modals": "^9.3.0",
+    "@mantine/notifications": "^9.3.0",
+    "@tanstack/react-query": "^5.101.0",
+    "lucide-react": "^1.17.0",
+    "openapi-fetch": "^0.17.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.2",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "openapi-typescript": "^7.13.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.16"
+  }
+}

@@ -37,9 +37,123 @@ NonEmptyStr = Annotated[str, Field(strict=True, min_length=1)]
 Port = Annotated[int, Field(strict=True, ge=1, le=65535)]
 StrictBool = Annotated[bool, Field(strict=True)]
 
+WORKER_INTERNAL_ID_EXAMPLE = "11111111-1111-4111-8111-111111111111"
+SOURCE_CONNECTION_ID_EXAMPLE = "22222222-2222-4222-8222-222222222222"
+DESTINATION_ID_EXAMPLE = "33333333-3333-4333-8333-333333333333"
+CONFIG_ID_EXAMPLE = "44444444-4444-4444-8444-444444444444"
+
+CREDENTIALS_EXAMPLE = {
+    "user": "cdc_sync",
+    "password": "cdc_sync",
+}
+WORKER_REQUEST_EXAMPLE = {
+    "worker_id": "local-worker",
+    "name": "Worker local",
+    "description": "Worker de la demo local",
+    "kafka_group_id": None,
+    "enabled": True,
+}
+WORKER_RESPONSE_EXAMPLE = {
+    "id": WORKER_INTERNAL_ID_EXAMPLE,
+    **WORKER_REQUEST_EXAMPLE,
+}
+SOURCE_CONNECTION_CREATE_EXAMPLE = {
+    "name": "PostgreSQL local",
+    "source_type": "postgresql",
+    "host": "postgres",
+    "port": 5432,
+    "database_name": "cdc_sync",
+    "credentials": CREDENTIALS_EXAMPLE,
+}
+SOURCE_CONNECTION_RESPONSE_EXAMPLE = {
+    "id": SOURCE_CONNECTION_ID_EXAMPLE,
+    "name": "PostgreSQL local",
+    "source_type": "postgresql",
+    "host": "postgres",
+    "port": 5432,
+    "database_name": "cdc_sync",
+    "credentials_configured": True,
+}
+DESTINATION_CREATE_EXAMPLE = {
+    "name": "ClickHouse local",
+    "destination_type": "clickhouse",
+    "host": "clickhouse",
+    "port": 9000,
+    "secure": False,
+    "database_name": "cdc_sync_analytics",
+    "credentials": CREDENTIALS_EXAMPLE,
+}
+DESTINATION_RESPONSE_EXAMPLE = {
+    "id": DESTINATION_ID_EXAMPLE,
+    "name": "ClickHouse local",
+    "destination_type": "clickhouse",
+    "host": "clickhouse",
+    "port": 9000,
+    "secure": False,
+    "database_name": "cdc_sync_analytics",
+    "credentials_configured": True,
+}
+DESTINATION_COLUMN_EXAMPLE = {
+    "name": "id",
+    "destination_type": "UInt64",
+    "nullable": False,
+}
+CONFIGURED_TABLE_EXAMPLE = {
+    "logical_name": "customers",
+    "source_schema": "public",
+    "source_table": "customers",
+    "cdc_topic": "cdc_sync.public.customers",
+    "destination_table": "customers",
+    "primary_key_fields": ["id"],
+    "destination_columns": [
+        DESTINATION_COLUMN_EXAMPLE,
+        {
+            "name": "email",
+            "destination_type": "String",
+            "nullable": True,
+        },
+    ],
+    "enabled": True,
+}
+SYNC_CONFIG_REQUEST_EXAMPLE = {
+    "name": "Configuración local",
+    "source_connection_id": SOURCE_CONNECTION_ID_EXAMPLE,
+    "destination_id": DESTINATION_ID_EXAMPLE,
+    "sync_mode": "realtime",
+    "tables": [CONFIGURED_TABLE_EXAMPLE],
+    "enabled": True,
+}
+SYNC_CONFIG_RESPONSE_EXAMPLE = {
+    "id": CONFIG_ID_EXAMPLE,
+    **SYNC_CONFIG_REQUEST_EXAMPLE,
+}
+ASSIGNMENT_REQUEST_EXAMPLE = {
+    "config_id": CONFIG_ID_EXAMPLE,
+}
+ASSIGNMENT_RESPONSE_EXAMPLE = {
+    "worker_internal_id": WORKER_INTERNAL_ID_EXAMPLE,
+    "worker_id": "local-worker",
+    "config_id": CONFIG_ID_EXAMPLE,
+    "assigned_at": "2026-06-07T10:00:00Z",
+}
+CDC_CONNECTOR_MATERIALIZATION_EXAMPLE = {
+    "connector_name": (
+        f"cdc-sync-postgresql-{SOURCE_CONNECTION_ID_EXAMPLE}"
+    ),
+    "source_connection_id": SOURCE_CONNECTION_ID_EXAMPLE,
+    "source_type": "postgresql",
+    "connector_class": "io.debezium.connector.postgresql.PostgresConnector",
+    "topic_prefix": "cdc_sync",
+    "captured_tables": ["public.customers"],
+}
+
 
 class CredentialsRequest(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(
+        frozen=True,
+        extra="forbid",
+        json_schema_extra={"examples": [CREDENTIALS_EXAMPLE]},
+    )
 
     user: NonEmptyStr
     password: NonEmptyStr
@@ -49,7 +163,11 @@ class CredentialsRequest(BaseModel):
 
 
 class WorkerRequest(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(
+        frozen=True,
+        extra="forbid",
+        json_schema_extra={"examples": [WORKER_REQUEST_EXAMPLE]},
+    )
 
     worker_id: NonEmptyStr
     name: NonEmptyStr
@@ -68,7 +186,10 @@ class WorkerRequest(BaseModel):
 
 
 class WorkerResponse(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(
+        frozen=True,
+        json_schema_extra={"examples": [WORKER_RESPONSE_EXAMPLE]},
+    )
 
     id: UUID
     worker_id: str
@@ -90,7 +211,11 @@ class WorkerResponse(BaseModel):
 
 
 class SourceConnectionCreateRequest(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(
+        frozen=True,
+        extra="forbid",
+        json_schema_extra={"examples": [SOURCE_CONNECTION_CREATE_EXAMPLE]},
+    )
 
     name: NonEmptyStr
     source_type: NonEmptyStr = "postgresql"
@@ -111,7 +236,21 @@ class SourceConnectionCreateRequest(BaseModel):
 
 
 class SourceConnectionUpdateRequest(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(
+        frozen=True,
+        extra="forbid",
+        json_schema_extra={
+            "examples": [
+                {
+                    "name": "PostgreSQL local",
+                    "source_type": "postgresql",
+                    "host": "postgres",
+                    "port": 5432,
+                    "database_name": "cdc_sync",
+                }
+            ]
+        },
+    )
 
     name: NonEmptyStr
     source_type: NonEmptyStr = "postgresql"
@@ -134,7 +273,10 @@ class SourceConnectionUpdateRequest(BaseModel):
 
 
 class SourceConnectionResponse(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(
+        frozen=True,
+        json_schema_extra={"examples": [SOURCE_CONNECTION_RESPONSE_EXAMPLE]},
+    )
 
     id: UUID
     name: str
@@ -161,7 +303,10 @@ class SourceConnectionResponse(BaseModel):
 
 
 class CdcConnectorMaterializationResponse(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(
+        frozen=True,
+        json_schema_extra={"examples": [CDC_CONNECTOR_MATERIALIZATION_EXAMPLE]},
+    )
 
     connector_name: str
     source_connection_id: UUID
@@ -186,7 +331,11 @@ class CdcConnectorMaterializationResponse(BaseModel):
 
 
 class DestinationCreateRequest(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(
+        frozen=True,
+        extra="forbid",
+        json_schema_extra={"examples": [DESTINATION_CREATE_EXAMPLE]},
+    )
 
     name: NonEmptyStr
     destination_type: NonEmptyStr = "clickhouse"
@@ -209,7 +358,22 @@ class DestinationCreateRequest(BaseModel):
 
 
 class DestinationUpdateRequest(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(
+        frozen=True,
+        extra="forbid",
+        json_schema_extra={
+            "examples": [
+                {
+                    "name": "ClickHouse local",
+                    "destination_type": "clickhouse",
+                    "host": "clickhouse",
+                    "port": 9000,
+                    "secure": False,
+                    "database_name": "cdc_sync_analytics",
+                }
+            ]
+        },
+    )
 
     name: NonEmptyStr
     destination_type: NonEmptyStr = "clickhouse"
@@ -234,7 +398,10 @@ class DestinationUpdateRequest(BaseModel):
 
 
 class DestinationResponse(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(
+        frozen=True,
+        json_schema_extra={"examples": [DESTINATION_RESPONSE_EXAMPLE]},
+    )
 
     id: UUID
     name: str
@@ -260,7 +427,11 @@ class DestinationResponse(BaseModel):
 
 
 class DestinationColumnRequest(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(
+        frozen=True,
+        extra="forbid",
+        json_schema_extra={"examples": [DESTINATION_COLUMN_EXAMPLE]},
+    )
 
     name: NonEmptyStr
     destination_type: NonEmptyStr
@@ -275,7 +446,10 @@ class DestinationColumnRequest(BaseModel):
 
 
 class DestinationColumnResponse(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(
+        frozen=True,
+        json_schema_extra={"examples": [DESTINATION_COLUMN_EXAMPLE]},
+    )
 
     name: str
     destination_type: str
@@ -294,7 +468,11 @@ class DestinationColumnResponse(BaseModel):
 
 
 class ConfiguredTableRequest(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(
+        frozen=True,
+        extra="forbid",
+        json_schema_extra={"examples": [CONFIGURED_TABLE_EXAMPLE]},
+    )
 
     logical_name: NonEmptyStr
     source_schema: NonEmptyStr
@@ -321,7 +499,10 @@ class ConfiguredTableRequest(BaseModel):
 
 
 class ConfiguredTableResponse(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(
+        frozen=True,
+        json_schema_extra={"examples": [CONFIGURED_TABLE_EXAMPLE]},
+    )
 
     logical_name: str
     source_schema: str
@@ -350,7 +531,11 @@ class ConfiguredTableResponse(BaseModel):
 
 
 class SyncConfigRequest(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(
+        frozen=True,
+        extra="forbid",
+        json_schema_extra={"examples": [SYNC_CONFIG_REQUEST_EXAMPLE]},
+    )
 
     name: NonEmptyStr
     source_connection_id: UUID
@@ -371,7 +556,10 @@ class SyncConfigRequest(BaseModel):
 
 
 class SyncConfigResponse(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(
+        frozen=True,
+        json_schema_extra={"examples": [SYNC_CONFIG_RESPONSE_EXAMPLE]},
+    )
 
     id: UUID
     name: str
@@ -398,7 +586,11 @@ class SyncConfigResponse(BaseModel):
 
 
 class AssignmentRequest(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(
+        frozen=True,
+        extra="forbid",
+        json_schema_extra={"examples": [ASSIGNMENT_REQUEST_EXAMPLE]},
+    )
 
     config_id: UUID
 
@@ -407,7 +599,10 @@ class AssignmentRequest(BaseModel):
 
 
 class AssignmentResponse(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(
+        frozen=True,
+        json_schema_extra={"examples": [ASSIGNMENT_RESPONSE_EXAMPLE]},
+    )
 
     worker_internal_id: UUID
     worker_id: str

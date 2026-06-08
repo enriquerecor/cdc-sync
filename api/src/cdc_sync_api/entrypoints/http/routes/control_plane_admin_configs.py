@@ -19,7 +19,13 @@ from cdc_sync_api.entrypoints.http.schemas.control_plane_admin import (
 router = APIRouter(prefix="/configs")
 
 
-@router.get("", response_model=list[SyncConfigResponse])
+@router.get(
+    "",
+    response_model=list[SyncConfigResponse],
+    summary="Listar configuraciones",
+    description="Devuelve las configuraciones administrativas persistidas.",
+    response_description="Configuraciones disponibles en el control plane.",
+)
 def list_configs(
     use_case: ManageControlPlaneUseCase = Depends(get_control_plane_admin_use_case),
 ) -> list[SyncConfigResponse]:
@@ -31,6 +37,16 @@ def list_configs(
     "",
     response_model=SyncConfigResponse,
     status_code=status.HTTP_201_CREATED,
+    summary="Crear configuración",
+    description=(
+        "Crea una configuración administrativa con sus tablas, claves "
+        "primarias y columnas destino."
+    ),
+    response_description="Configuración creada.",
+    responses={
+        404: {"description": "Origen o destino inexistente."},
+        422: {"description": "Configuración incompatible con el MVP."},
+    },
 )
 def create_config(
     request: SyncConfigRequest,
@@ -40,7 +56,14 @@ def create_config(
     return SyncConfigResponse.from_domain(config)
 
 
-@router.get("/{config_id}", response_model=SyncConfigResponse)
+@router.get(
+    "/{config_id}",
+    response_model=SyncConfigResponse,
+    summary="Consultar configuración",
+    description="Devuelve una configuración administrativa por su UUID interno.",
+    response_description="Configuración administrativa encontrada.",
+    responses={404: {"description": "Configuración inexistente."}},
+)
 def get_config(
     config_id: UUID,
     use_case: ManageControlPlaneUseCase = Depends(get_control_plane_admin_use_case),
@@ -49,7 +72,20 @@ def get_config(
     return SyncConfigResponse.from_domain(config)
 
 
-@router.put("/{config_id}", response_model=SyncConfigResponse)
+@router.put(
+    "/{config_id}",
+    response_model=SyncConfigResponse,
+    summary="Actualizar configuración",
+    description=(
+        "Reemplaza el agregado completo de una configuración administrativa "
+        "existente."
+    ),
+    response_description="Configuración actualizada.",
+    responses={
+        404: {"description": "Configuración, origen o destino inexistente."},
+        422: {"description": "Configuración incompatible con el MVP."},
+    },
+)
 def update_config(
     config_id: UUID,
     request: SyncConfigRequest,
@@ -61,7 +97,17 @@ def update_config(
     return SyncConfigResponse.from_domain(config)
 
 
-@router.delete("/{config_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{config_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Eliminar configuración",
+    description="Elimina una configuración si no está asignada a ningún worker.",
+    responses={
+        204: {"description": "Configuración eliminada."},
+        404: {"description": "Configuración inexistente."},
+        409: {"description": "La configuración está asignada a un worker."},
+    },
+)
 def delete_config(
     config_id: UUID,
     use_case: ManageControlPlaneUseCase = Depends(get_control_plane_admin_use_case),

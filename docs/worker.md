@@ -118,5 +118,11 @@ make worker-test
 
 ## Validación extremo a extremo
 
-`make e2e-validate` queda obsoleto temporalmente porque dependía del fixture JSON local eliminado en #28. La validación
-reproducible completa de la vertical multi-worker queda delegada a #33.
+La validación reproducible completa vive en la demo multi-worker:
+
+```bash
+make demo-local
+```
+
+También puede ejecutarse por pasos con `make demo-workers`, `make demo-changes` y `make demo-assert` cuando se quiera
+depurar solo el comportamiento runtime del worker.

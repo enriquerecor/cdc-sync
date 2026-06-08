@@ -52,8 +52,33 @@ make api-health
 Resultado esperado:
 
 - `GET /health` responde `200 OK` con el estado del servicio y de la base de datos
-- `GET /api/v1` expone el routing base del backend
+- `GET /api/v1` expone el routing base y las URLs de documentación del backend
 - OpenAPI queda disponible en `http://localhost:8000/docs`
+
+## OpenAPI y Postman
+
+FastAPI genera el contrato OpenAPI a partir de las rutas y schemas HTTP. El repositorio no versiona un
+`openapi.json` estático para evitar divergencias con el código.
+
+Con la API levantada, se puede inspeccionar el contrato en:
+
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
+- OpenAPI JSON: `http://localhost:8000/openapi.json`
+
+Swagger UI permite probar los endpoints principales desde el navegador. El JSON de OpenAPI puede importarse en Postman
+usando la opción de importar desde URL y pegando:
+
+```text
+http://localhost:8000/openapi.json
+```
+
+Postman puede generar una colección a partir de esa especificación para explorar o ejecutar peticiones contra la API
+local. Esta colección no se versiona en el repositorio en esta fase: debe generarse desde el contrato actual cuando se
+quiera revisar o demostrar la API. Los tests automatizados del proyecto siguen viviendo en `pytest`.
+
+La demo reproducible completa de la vertical multi-worker, con workers reales consumiendo eventos y escribiendo en
+ClickHouse, queda separada para #33.
 
 ## API administrativa
 
@@ -208,6 +233,7 @@ devuelve `422`. Si Kafka Connect no está disponible o rechaza la configuración
 - `API_WORKER_KAFKA_CLIENT_ID_PREFIX`
 - `API_WORKER_KAFKA_AUTO_OFFSET_RESET`
 - `API_WORKER_KAFKA_POLL_TIMEOUT_MS`
+- `API_CORS_ALLOWED_ORIGINS`
 - `CONTROL_PLANE_POSTGRES_DB`
 - `CONTROL_PLANE_POSTGRES_USER`
 - `CONTROL_PLANE_POSTGRES_PASSWORD`
@@ -222,6 +248,9 @@ devuelve `422`. Si Kafka Connect no está disponible o rechaza la configuración
 En Docker, `API_DATABASE_HOST`, `API_DATABASE_PORT`, `API_DATABASE_NAME`, `API_DATABASE_USER` y
 `API_DATABASE_PASSWORD` se inyectan con valores internos del stack. En ejecución local fuera de Docker, esos valores
 deben venir del entorno del proceso.
+
+`API_CORS_ALLOWED_ORIGINS` acepta una lista separada por comas con los orígenes permitidos para el frontend local. El
+valor por defecto del entorno local permite `http://localhost:5173` y `http://127.0.0.1:5173`.
 
 ## Tests mínimos
 

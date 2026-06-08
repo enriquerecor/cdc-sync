@@ -54,18 +54,45 @@ make api-health
 
 La documentación detallada del backend está en [docs/api.md](docs/api.md).
 
-La validación e2e anterior queda obsoleta temporalmente:
+## Frontend administrativo
+
+La base del frontend vive en `frontend/` y usa Vite, React, TypeScript y Mantine para la UI administrativa mínima del
+control plane.
+
+Flujo local con npm:
+
+```bash
+make env-init
+make api-up
+make api-migrate
+make frontend-install
+make frontend-api-types
+make frontend-dev
+```
+
+Flujo local con Docker Compose:
+
+```bash
+make env-init
+make frontend-up
+make frontend-logs
+```
+
+El servicio está integrado en el stack local y puede arrancarse con `docker compose up frontend` o junto al resto del
+stack. La documentación detallada está en [frontend/README.md](frontend/README.md).
+
+La demo e2e local levanta la vertical multi-worker desde configuración API:
 
 ```bash
 make e2e-validate
 ```
 
-Este comando falla de forma explícita porque dependía del fixture JSON local eliminado en #28. La demo reproducible
-multi-worker desde configuración API queda delegada a #33.
+Este comando delega en `make demo-local`. También puede ejecutarse por pasos; la documentación detallada está en
+[docs/local-stack.md](docs/local-stack.md).
 
 ## Qué incluye esta fase
 
-- PostgreSQL local con tablas de prueba `customers` y `orders`
+- PostgreSQL local con tablas de prueba `customers`, `orders` y un fixture ERP/CRM multi-módulo para la demo e2e
 - ZooKeeper y Kafka para mensajería
 - Debezium Connect con conector PostgreSQL materializable desde el control plane
 - Worker stateless en Python que carga su configuración runtime desde la API, consume eventos CDC, los normaliza y los
@@ -85,13 +112,20 @@ conector se conserva como fixture de depuración local, pero no como fuente can�
 - [ClickHouse](docs/clickhouse.md)
 - [API REST](docs/api.md)
 
-## Estado actual
+## Demo local multi-worker
 
-- El alta del conector CDC no se hace automáticamente con `docker compose up`.
-- El flujo e2e completo queda pendiente de #33. Hasta entonces, este comando falla con un mensaje explícito:
+La demo oficial usa tres workers dinámicos:
+
+- `crm-worker`: cuentas, contactos, oportunidades y actividades.
+- `sales-worker`: pedidos, líneas, facturas y pagos.
+- `operations-worker`: proveedores, productos, almacenes y movimientos.
+
+Ejecución completa:
 
 ```bash
-make e2e-validate
+make env-init
+make demo-local
 ```
 
-- El flujo manual con `docker compose`, `make debezium-postgres-apply` y consultas directas sigue disponible para depuración.
+El flujo manual con `docker compose`, `make debezium-postgres-apply` y consultas directas sigue disponible para
+depuración, pero la fuente de verdad funcional de la demo es la configuración creada por la API.
