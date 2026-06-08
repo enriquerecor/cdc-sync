@@ -118,6 +118,16 @@ make frontend-logs
 El servicio está integrado en el stack local y puede arrancarse con `docker compose up frontend` o junto al resto del
 stack. La documentación detallada está en [frontend/README.md](frontend/README.md).
 
+Para demos manuales creadas desde la consola, los workers stateless pueden arrancarse por identificador operativo:
+
+```bash
+make workers-up WORKER_IDS=crm-worker,sales-worker
+make workers-down WORKER_IDS=crm-worker,sales-worker
+```
+
+`workers-up` valida primero que la API publique `GET /workers/{worker_id}/config` para cada identificador. Esta
+orquestación es local de demo; la API y la UI no arrancan ni paran contenedores.
+
 ## Validación end-to-end
 
 Cuando la consola y la API ya levantan correctamente, la validación reproducible de la vertical completa se ejecuta con:

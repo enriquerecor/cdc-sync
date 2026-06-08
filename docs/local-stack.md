@@ -60,8 +60,36 @@ Flujo mínimo de demo desde la interfaz:
 2. Crear una configuración con tablas, claves primarias y columnas destino.
 3. Asignar la configuración al worker.
 4. Materializar CDC para el origen.
-5. Reiniciar manualmente el worker con su `WORKER_ID`.
+5. Arrancar o reiniciar manualmente el worker con `make workers-up WORKER_IDS=<worker_id>`.
 6. Consultar `GET /workers/{worker_id}/config` desde la vista runtime.
+
+## Arranque manual de workers
+
+Para demos creadas desde la UI se pueden despertar workers stateless indicando sus identificadores operativos:
+
+```bash
+make workers-up WORKER_IDS=crm-worker,sales-worker
+```
+
+El comando valida antes de arrancar que cada worker tenga contrato runtime publicado en
+`GET /workers/{worker_id}/config`. Si algún identificador no existe, no tiene configuración efectiva o contiene
+caracteres no aptos para nombres de contenedor estables, el comando falla de forma explícita.
+
+Los contenedores usan nombres derivados del `WORKER_ID`:
+
+```text
+cdc-sync-demo-worker-crm-worker
+cdc-sync-demo-worker-sales-worker
+```
+
+Para parar los workers indicados:
+
+```bash
+make workers-down WORKER_IDS=crm-worker,sales-worker
+```
+
+Este comando es idempotente: si un contenedor no existe, lo informa sin fallar. Esta pieza es solo orquestación local de
+demo; no implica autoescalado ni control de infraestructura desde el control plane.
 
 ## Demo end-to-end
 
@@ -96,7 +124,7 @@ Cada paso falla de forma explícita si falta una dependencia previa. Los identif
 
 ## Workers de demo
 
-Por defecto se usan tres workers, definidos con `DEMO_WORKER_IDS`:
+La demo e2e por API usa por defecto tres workers, definidos con `DEMO_WORKER_IDS`:
 
 ```bash
 DEMO_WORKER_IDS=crm-worker,sales-worker,operations-worker
