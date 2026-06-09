@@ -29,3 +29,42 @@ export type DestinationFormValues = CredentialsFormValues & {
   secure: boolean;
   databaseName: string;
 };
+
+export type DestinationColumnFormValues = {
+  name: string;
+  destinationType: string;
+  nullable: boolean;
+};
+
+export type ConfiguredTableFormValues = {
+  logicalName: string;
+  sourceSchema: string;
+  sourceTable: string;
+  cdcTopic: string;
+  destinationTable: string;
+  primaryKeyFields: string;
+  destinationColumns: DestinationColumnFormValues[];
+  enabled: boolean;
+};
+
+export type SyncConfigFormValues = {
+  name: string;
+  sourceConnectionId: string;
+  destinationId: string;
+  syncMode: string;
+  tables: ConfiguredTableFormValues[];
+  enabled: boolean;
+};
+
+export type AssignmentFormValues = {
+  workerInternalId: string;
+  configId: string;
+};
+
+export type MaterializationFormValues = {
+  sourceConnectionId: string;
+};
+
+export type RuntimeLookupFormValues = {
+  workerId: string;
+};

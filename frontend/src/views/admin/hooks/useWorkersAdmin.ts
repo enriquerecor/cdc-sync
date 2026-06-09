@@ -16,8 +16,7 @@ import {
   showApiErrorNotification,
   showSuccessNotification,
 } from "../utils/notifications";
-
-const WORKERS_QUERY_KEY = ["control-plane-admin", "workers"] as const;
+import { CONTROL_PLANE_QUERY_KEYS } from "../utils/queryKeys";
 
 export function useWorkersAdmin() {
   const queryClient = useQueryClient();
@@ -25,7 +24,7 @@ export function useWorkersAdmin() {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const workersQuery = useQuery({
-    queryKey: WORKERS_QUERY_KEY,
+    queryKey: CONTROL_PLANE_QUERY_KEYS.workers,
     queryFn: listWorkers,
   });
 
@@ -33,7 +32,9 @@ export function useWorkersAdmin() {
     mutationFn: createWorker,
     onSuccess: () => {
       closeModal();
-      void queryClient.invalidateQueries({ queryKey: WORKERS_QUERY_KEY });
+      void queryClient.invalidateQueries({
+        queryKey: CONTROL_PLANE_QUERY_KEYS.workers,
+      });
       showSuccessNotification("Worker creado", "El worker se guardó correctamente");
     },
     onError: showApiErrorNotification,
@@ -49,7 +50,9 @@ export function useWorkersAdmin() {
     }) => updateWorker(workerInternalId, payload),
     onSuccess: () => {
       closeModal();
-      void queryClient.invalidateQueries({ queryKey: WORKERS_QUERY_KEY });
+      void queryClient.invalidateQueries({
+        queryKey: CONTROL_PLANE_QUERY_KEYS.workers,
+      });
       showSuccessNotification(
         "Worker actualizado",
         "Los cambios se guardaron correctamente",
@@ -61,7 +64,9 @@ export function useWorkersAdmin() {
   const deleteWorkerMutation = useMutation({
     mutationFn: deleteWorker,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: WORKERS_QUERY_KEY });
+      void queryClient.invalidateQueries({
+        queryKey: CONTROL_PLANE_QUERY_KEYS.workers,
+      });
       showSuccessNotification("Worker eliminado", "El worker se eliminó");
     },
     onError: showApiErrorNotification,

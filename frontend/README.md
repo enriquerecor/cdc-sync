@@ -2,8 +2,8 @@
 
 Base técnica del frontend MVP de `cdc-sync`.
 
-La aplicación usa Vite, React, TypeScript y Mantine. Permite gestionar las entidades administrativas base del control
-plane: workers, conexiones de origen y destinos analíticos.
+La aplicación usa Vite, React, TypeScript y Mantine. Permite gestionar workers, conexiones de origen, destinos
+analíticos, configuraciones de sincronización y operaciones de publicación del MVP.
 
 ## Configuración
 
@@ -52,20 +52,24 @@ http://localhost:5173
 
 ## Uso básico
 
-La consola incluye tres CRUDs administrativos:
+La consola incluye los flujos administrativos principales:
 
 - Workers: alta, edición, activación/desactivación y eliminación.
 - Orígenes: alta, edición y eliminación de conexiones de origen.
 - Destinos: alta, edición y eliminación de destinos analíticos.
+- Configuraciones: alta, edición y eliminación del agregado completo con tablas, claves primarias y columnas destino.
+- Publicación: asignación efectiva de una configuración a un worker y materialización CDC del origen.
+- Runtime: consulta de solo lectura del contrato publicado con `GET /workers/{worker_id}/config`.
 
 Los motores se seleccionan desde catálogos internos. En el MVP solo están habilitados PostgreSQL como origen y
 ClickHouse como destino, pero las vistas no quedan acopladas a esas tecnologías concretas.
 
-Las respuestas de lectura no contienen secretos. En creación, usuario y contraseña son obligatorios para orígenes y
-destinos. En edición, las credenciales se envían solo si se rellenan explícitamente los dos campos.
+Las respuestas administrativas de lectura no contienen secretos. En creación, usuario y contraseña son obligatorios
+para orígenes y destinos. En edición, las credenciales se envían solo si se rellenan explícitamente los dos campos.
 
-La pestaña de configuraciones queda reservada para el flujo posterior de tablas, asignaciones, materialización CDC y
-runtime.
+El flujo mínimo de demo desde la UI es crear worker, origen y destino; crear una configuración con tablas; asignarla al
+worker; materializar CDC para el origen; reiniciar manualmente el worker; y consultar el contrato runtime por
+`WORKER_ID`. Los cambios de configuración no se aplican en caliente.
 
 ## Desarrollo con Docker Compose
 
