@@ -1,38 +1,110 @@
-import { Select, Stack } from "@mantine/core";
-import { useState } from "react";
+import { Modal, Stack, Text } from "@mantine/core";
+import { Plus } from "lucide-react";
 
-import { EmptyAdministrativeView } from "../components/FeedbackState";
-
-const SOURCE_ENGINE_OPTIONS = [
-  { value: "postgresql", label: "PostgreSQL" },
-  { value: "mysql", label: "MySQL", disabled: true },
-  { value: "sql-server", label: "SQL Server", disabled: true },
-  { value: "oracle", label: "Oracle", disabled: true },
-];
+import { normalizeApiError } from "../api/errors";
+import { AdministrativeViewHeader } from "../components/AdministrativeViewHeader";
+import { ErrorState, LoadingState } from "../components/FeedbackState";
+import { SourceConnectionForm } from "./admin/components/SourceConnectionForm";
+import { SourceConnectionsTable } from "./admin/components/SourceConnectionsTable";
+import { useSourceConnectionsAdmin } from "./admin/hooks/useSourceConnectionsAdmin";
 
 export function SourceConnectionsView() {
-  const [sourceEngine, setSourceEngine] = useState("postgresql");
+  const {
+    sourceConnectionsQuery,
+    sourceConnectionBeingEdited,
+    isModalOpen,
+    isSaving,
+    isDeleting,
+    openCreateModal,
+    openEditModal,
+    closeModal,
+    handleSubmit,
+    openDeleteConfirmation,
+  } = useSourceConnectionsAdmin();
 
   return (
-    <Stack gap="md">
-      <EmptyAdministrativeView
+    <Stack gap="lg">
+      <AdministrativeViewHeader
         title="Orígenes de datos"
-        description="Define las conexiones transaccionales desde las que se capturan los cambios."
+        description="Gestiona conexiones transaccionales desde las que se capturan cambios."
+        actionLabel="Crear origen"
+        actionIcon={Plus}
+        onAction={openCreateModal}
       />
-      <Select
-        label="Motor de origen"
-        description="Selecciona la tecnología transaccional disponible para capturar cambios."
-        data={SOURCE_ENGINE_OPTIONS}
-        value={sourceEngine}
-        onChange={(value) => {
-          if (!value) {
-            return;
-          }
 
-          setSourceEngine(value);
-        }}
-        maw={420}
-      />
+      {renderSourceConnectionsContent({
+        sourceConnectionsQuery,
+        isDeleting,
+        openEditModal,
+        openDeleteConfirmation,
+      })}
+
+      <Modal
+        opened={isModalOpen}
+        onClose={closeModal}
+        title={
+          sourceConnectionBeingEdited ? "Editar origen" : "Crear origen"
+        }
+      >
+        <SourceConnectionForm
+          key={sourceConnectionBeingEdited?.id ?? "new-source-connection"}
+          sourceConnection={sourceConnectionBeingEdited}
+          isSaving={isSaving}
+          onCancel={closeModal}
+          onSubmit={handleSubmit}
+        />
+      </Modal>
     </Stack>
+  );
+}
+
+type SourceConnectionsContentProps = {
+  sourceConnectionsQuery: ReturnType<
+    typeof useSourceConnectionsAdmin
+  >["sourceConnectionsQuery"];
+  isDeleting: boolean;
+  openEditModal: ReturnType<typeof useSourceConnectionsAdmin>["openEditModal"];
+  openDeleteConfirmation: ReturnType<
+    typeof useSourceConnectionsAdmin
+  >["openDeleteConfirmation"];
+};
+
+function renderSourceConnectionsContent({
+  sourceConnectionsQuery,
+  isDeleting,
+  openEditModal,
+  openDeleteConfirmation,
+}: SourceConnectionsContentProps) {
+  if (sourceConnectionsQuery.isPending) {
+    return <LoadingState message="Cargando orígenes" />;
+  }
+
+  if (sourceConnectionsQuery.error) {
+    const apiError = normalizeApiError(sourceConnectionsQuery.error);
+
+    return (
+      <ErrorState
+        title="No se pudieron cargar los orígenes"
+        message={apiError.message}
+        onRetry={() => void sourceConnectionsQuery.refetch()}
+      />
+    );
+  }
+
+  if (!sourceConnectionsQuery.data || sourceConnectionsQuery.data.length === 0) {
+    return (
+      <Text c="dimmed" size="sm">
+        Todavía no hay orígenes registrados.
+      </Text>
+    );
+  }
+
+  return (
+    <SourceConnectionsTable
+      sourceConnections={sourceConnectionsQuery.data}
+      isDeleting={isDeleting}
+      onEdit={openEditModal}
+      onDelete={openDeleteConfirmation}
+    />
   );
 }

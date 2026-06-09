@@ -6,6 +6,9 @@ Levantar un entorno reproducible para validar el flujo:
 
 ```text
 PostgreSQL -> Debezium -> Kafka -> Worker -> ClickHouse
+                     ^
+                     |
+             API + frontend administrativo
 ```
 
 ## Requisitos previos
@@ -24,10 +27,34 @@ make env-init
 Este comando crea, sin sobrescribir si ya existen:
 
 - `.env`, con variables compartidas por Docker Compose;
+- `frontend/.env`, con la URL de la API consumida por Vite;
 - `infrastructure/debezium/connectors/generated/postgresql-source.local.env`, fixture temporal del conector Debezium.
 
 La configuración funcional del MVP vive en el control plane. El fixture del conector sigue disponible para depuración
 local, pero el worker ya no usa JSON local como fuente de verdad.
+
+## Consola administrativa
+
+Para levantar la UI conectada a la API local desde cero:
+
+```bash
+make env-init
+make api-migrate
+make frontend-up
+make api-health
+```
+
+Abrir:
+
+```text
+http://localhost:5173
+```
+
+La consola permite gestionar workers, conexiones de origen y destinos analíticos. Las configuraciones de tablas y
+asignaciones efectivas forman parte de la API y de la demo e2e, pero la pestaña de configuraciones sigue como
+placeholder de la siguiente fase de UI.
+
+## Demo end-to-end
 
 La demo e2e oficial valida la vertical completa multi-worker desde configuración API:
 
@@ -127,3 +154,5 @@ docker logs -f cdc-sync-demo-worker-operations-worker
 - [Debezium](debezium.md)
 - [Worker](worker.md)
 - [ClickHouse](clickhouse.md)
+- [API REST](api.md)
+- [Modelo del control plane](control-plane-model.md)

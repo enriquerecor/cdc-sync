@@ -31,16 +31,16 @@ make env-init
 La API no carga automáticamente un `.env` del repositorio. En Docker recibe sus variables desde `docker-compose.yml`.
 Para ejecutarla fuera de Docker puede usarse `api/.env.example` como plantilla local.
 
-Levantar PostgreSQL del control plane y la API:
-
-```bash
-make api-up
-```
-
-Aplicar migraciones:
+Aplicar migraciones sobre PostgreSQL del control plane:
 
 ```bash
 make api-migrate
+```
+
+Levantar la API:
+
+```bash
+make api-up
 ```
 
 Comprobar salud:
@@ -53,7 +53,7 @@ Resultado esperado:
 
 - `GET /health` responde `200 OK` con el estado del servicio y de la base de datos
 - `GET /api/v1` expone el routing base y las URLs de documentación del backend
-- OpenAPI queda disponible en `http://localhost:8000/docs`
+- Swagger UI queda disponible en `http://localhost:8000/docs`
 
 ## OpenAPI y Postman
 
@@ -78,7 +78,7 @@ local. Esta colección no se versiona en el repositorio en esta fase: debe gener
 quiera revisar o demostrar la API. Los tests automatizados del proyecto siguen viviendo en `pytest`.
 
 La demo reproducible completa de la vertical multi-worker, con workers reales consumiendo eventos y escribiendo en
-ClickHouse, queda separada para #33.
+ClickHouse, está documentada en [local-stack.md](local-stack.md).
 
 ## API administrativa
 
@@ -127,6 +127,10 @@ arrancar y mantiene esa configuración fija hasta el siguiente reinicio manual.
 Los workers aceptan `kafka_group_id` opcional en creación y actualización. Si no se informa, el contrato runtime deriva
 el grupo efectivo como `cdc-sync-worker-{worker_id}`. La API rechaza workers cuyo grupo efectivo colisione con el de
 otro worker, tanto si el grupo viene persistido como si se deriva.
+
+La consola administrativa consume actualmente los CRUD de workers, conexiones de origen y destinos. La gestión visual
+de configuraciones, asignaciones y materialización CDC queda para la siguiente fase de frontend, aunque esos endpoints
+ya formen parte del contrato de la API y de la demo e2e.
 
 ## Contrato runtime del worker
 
