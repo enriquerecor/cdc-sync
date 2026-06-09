@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -21,6 +22,7 @@ DEFAULT_STATE_FILE = ".tmp/e2e-demo-state.json"
 DEFAULT_WORKER_IDS = "crm-worker,sales-worker,operations-worker"
 DEFAULT_ASSERT_TIMEOUT_SECONDS = 120
 ASSERT_RETRY_DELAY_SECONDS = 5
+WORKER_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 POSTGRES_SCHEMA_FILES = (
     "infrastructure/postgresql/init/003-erp-crm-schema.sql",
     "infrastructure/postgresql/init/004-erp-crm-seed.sql",
@@ -359,22 +361,48 @@ class DemoRunner:
 
     def workers(self) -> None:
         state = self._require_state("workers")
-        _print_step("Arrancando workers stateless con WORKER_ID dinámico")
+        worker_containers = self._start_workers(
+            self._state_worker_ids(state),
+            "Arrancando workers stateless con WORKER_ID dinámico",
+        )
+        state["worker_containers"] = worker_containers
+        self._save_state(state)
+        _print_ok("Workers arrancados")
+
+    def workers_up(self) -> None:
+        worker_containers = self._start_workers(
+            self._explicit_worker_ids(),
+            "Arrancando workers locales desde WORKER_IDS",
+        )
+        _print_ok(
+            "Workers arrancados: "
+            + ", ".join(worker_containers.values())
+        )
+
+    def workers_down(self) -> None:
+        worker_ids = self._explicit_worker_ids()
+        _print_step("Parando workers locales desde WORKER_IDS")
+        for worker_id in worker_ids:
+            self._remove_worker_container(_container_name(worker_id), report_missing=True)
+
+        _print_ok("Workers parados")
+
+    def _start_workers(
+        self,
+        worker_ids: list[str],
+        message: str,
+    ) -> dict[str, str]:
+        _print_step(message)
         self._wait_for_api()
         self._wait_for_kafka()
         self._wait_for_clickhouse()
+        self._validate_runtime_configs(worker_ids)
         _run(["docker", "compose", "build", "worker"])
 
         worker_containers: dict[str, str] = {}
-        for worker_id in self._state_worker_ids(state):
-            runtime_config = self._request_json("GET", f"/workers/{worker_id}/config", None)
-            if runtime_config["worker"]["worker_id"] != worker_id:
-                raise DemoError(
-                    f"El contrato runtime devuelto no pertenece a '{worker_id}'"
-                )
-
+        for worker_id in worker_ids:
             container_name = _container_name(worker_id)
-            _run(["docker", "rm", "-f", container_name], check=False)
+            self._remove_worker_container(container_name, report_missing=False)
             _run(
                 [
                     "docker",
@@ -392,9 +420,7 @@ class DemoRunner:
             self._wait_for_container_running(container_name)
             worker_containers[worker_id] = container_name
 
-        state["worker_containers"] = worker_containers
-        self._save_state(state)
-        _print_ok("Workers arrancados")
+        return worker_containers
 
     def changes(self) -> None:
         state = self._require_state("worker_ids")
@@ -441,22 +467,10 @@ class DemoRunner:
         self.assert_state()
 
     def _selected_worker_ids(self) -> list[str]:
-        raw_worker_ids = self.env.get("DEMO_WORKER_IDS", DEFAULT_WORKER_IDS)
-        worker_ids = [
-            worker_id.strip()
-            for worker_id in raw_worker_ids.split(",")
-            if worker_id.strip()
-        ]
-        if not worker_ids:
-            raise DemoError("DEMO_WORKER_IDS debe incluir al menos un worker")
-
-        duplicated_worker_ids = {
-            worker_id for worker_id in worker_ids if worker_ids.count(worker_id) > 1
-        }
-        if duplicated_worker_ids:
-            duplicated = ", ".join(sorted(duplicated_worker_ids))
-            raise DemoError(f"DEMO_WORKER_IDS contiene workers duplicados: {duplicated}")
-
+        worker_ids = _parse_worker_ids(
+            self.env.get("DEMO_WORKER_IDS", DEFAULT_WORKER_IDS),
+            "DEMO_WORKER_IDS",
+        )
         unsupported_worker_ids = [
             worker_id
             for worker_id in worker_ids
@@ -471,12 +485,18 @@ class DemoRunner:
             f"Workers de demo no soportados: {unsupported}. Valores válidos: {supported}"
         )
 
+    def _explicit_worker_ids(self) -> list[str]:
+        return _parse_worker_ids(self.env.get("WORKER_IDS"), "WORKER_IDS")
+
     def _state_worker_ids(self, state: dict[str, Any]) -> list[str]:
         worker_ids = state.get("worker_ids")
         if not isinstance(worker_ids, list) or not worker_ids:
             raise DemoError("El estado de demo no incluye worker_ids")
 
-        return [str(worker_id) for worker_id in worker_ids]
+        return _validate_worker_ids(
+            [str(worker_id).strip() for worker_id in worker_ids if str(worker_id).strip()],
+            "worker_ids del estado de demo",
+        )
 
     def _selected_modules_from_state(
         self,
@@ -646,6 +666,56 @@ class DemoRunner:
             return None
 
         return json.loads(body)
+
+    def _validate_runtime_configs(self, worker_ids: list[str]) -> None:
+        for worker_id in worker_ids:
+            runtime_config = self._request_json("GET", f"/workers/{worker_id}/config", None)
+            worker_payload = (
+                runtime_config.get("worker")
+                if isinstance(runtime_config, dict)
+                else None
+            )
+            if (
+                isinstance(worker_payload, dict)
+                and worker_payload.get("worker_id") == worker_id
+            ):
+                continue
+
+            raise DemoError(
+                f"El contrato runtime devuelto no pertenece a '{worker_id}'"
+            )
+
+    def _remove_worker_container(
+        self,
+        container_name: str,
+        *,
+        report_missing: bool,
+    ) -> None:
+        if not self._container_exists(container_name):
+            if report_missing:
+                _print_step(f"El contenedor {container_name} no existe")
+            return
+
+        output = _run(["docker", "rm", "-f", container_name], check=False).strip()
+        if output and output.splitlines()[-1].strip() == container_name:
+            if report_missing:
+                _print_step(f"Contenedor eliminado: {container_name}")
+            return
+
+        raise DemoError(f"No se pudo eliminar el contenedor {container_name}: {output}")
+
+    def _container_exists(self, container_name: str) -> bool:
+        output = _run(
+            ["docker", "inspect", "-f", "{{.Id}}", container_name],
+            check=False,
+        ).strip()
+        if output and "no such object" not in output.lower():
+            return True
+
+        if "no such object" in output.lower():
+            return False
+
+        raise DemoError(f"No se pudo inspeccionar el contenedor {container_name}: {output}")
 
     def _apply_postgres_demo_schema(self) -> None:
         _print_step("Asegurando esquema ERP/CRM en PostgreSQL local")
@@ -1485,6 +1555,44 @@ def _container_name(worker_id: str) -> str:
     return f"cdc-sync-demo-worker-{worker_id}"
 
 
+def _parse_worker_ids(raw_worker_ids: str | None, variable_name: str) -> list[str]:
+    if raw_worker_ids is None:
+        raise DemoError(f"{variable_name} debe incluir al menos un worker")
+
+    worker_ids = [
+        worker_id.strip()
+        for worker_id in raw_worker_ids.split(",")
+        if worker_id.strip()
+    ]
+    return _validate_worker_ids(worker_ids, variable_name)
+
+
+def _validate_worker_ids(worker_ids: list[str], variable_name: str) -> list[str]:
+    if not worker_ids:
+        raise DemoError(f"{variable_name} debe incluir al menos un worker")
+
+    duplicated_worker_ids = {
+        worker_id for worker_id in worker_ids if worker_ids.count(worker_id) > 1
+    }
+    if duplicated_worker_ids:
+        duplicated = ", ".join(sorted(duplicated_worker_ids))
+        raise DemoError(f"{variable_name} contiene workers duplicados: {duplicated}")
+
+    invalid_worker_ids = [
+        worker_id
+        for worker_id in worker_ids
+        if WORKER_ID_PATTERN.fullmatch(worker_id) is None
+    ]
+    if invalid_worker_ids:
+        invalid = ", ".join(invalid_worker_ids)
+        raise DemoError(
+            f"{variable_name} contiene workers no válidos para nombres de "
+            f"contenedor estables: {invalid}"
+        )
+
+    return worker_ids
+
+
 def _load_environment() -> dict[str, str]:
     env = {
         "POSTGRES_DB": "cdc_sync",
@@ -1576,11 +1684,11 @@ def _wait_until(
 
 
 def _print_step(message: str) -> None:
-    print(f"[demo] {message}")
+    print(f"[demo] {message}", flush=True)
 
 
 def _print_ok(message: str) -> None:
-    print(f"[demo] OK: {message}")
+    print(f"[demo] OK: {message}", flush=True)
 
 
 def _print_postgres_change_summary(
@@ -1619,6 +1727,8 @@ def _build_parser() -> argparse.ArgumentParser:
         "configure",
         "materialize",
         "workers",
+        "workers-up",
+        "workers-down",
         "changes",
         "assert",
         "all",
@@ -1638,6 +1748,8 @@ def main() -> int:
         "configure": runner.configure,
         "materialize": runner.materialize,
         "workers": runner.workers,
+        "workers-up": runner.workers_up,
+        "workers-down": runner.workers_down,
         "changes": runner.changes,
         "assert": runner.assert_state,
         "all": runner.all,
