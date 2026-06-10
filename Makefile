@@ -30,7 +30,7 @@ endef
 
 .DEFAULT_GOAL := help
 
-.PHONY: help env-init api-up api-migrate api-logs api-health api-test api-test-integration frontend-install frontend-dev frontend-build frontend-api-types frontend-up frontend-logs worker-test-deps worker-test workers-up workers-down demo-up demo-migrate demo-configure demo-materialize demo-workers demo-changes demo-assert demo-local e2e-validate debezium-postgres-render debezium-postgres-apply debezium-postgres-status
+.PHONY: help env-init api-up api-migrate api-logs api-health api-test api-test-integration frontend-install frontend-dev frontend-build frontend-smoke frontend-api-types frontend-up frontend-logs worker-test-deps worker-test workers-up workers-down demo-up demo-migrate demo-configure demo-materialize demo-workers demo-changes demo-assert demo-local e2e-validate debezium-postgres-render debezium-postgres-apply debezium-postgres-status
 
 help:
 	@echo "Objetivos disponibles:"
@@ -44,6 +44,7 @@ help:
 	@echo "  make frontend-install"
 	@echo "  make frontend-dev"
 	@echo "  make frontend-build"
+	@echo "  make frontend-smoke"
 	@echo "  make frontend-api-types"
 	@echo "  make frontend-up"
 	@echo "  make frontend-logs"
@@ -150,6 +151,9 @@ frontend-dev:
 
 frontend-build:
 	@npm --prefix frontend run build
+
+frontend-smoke:
+	@npm --prefix frontend run smoke:admin
 
 frontend-api-types:
 	@npm --prefix frontend run api:types
