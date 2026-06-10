@@ -2,6 +2,10 @@
 
 Sistema configurable de sincronización CDC entre una base de datos transaccional y una base de datos analítica.
 
+> Elaborado por Enrique Redondo Cortés y dirigido por Javier Pérez Marcos.
+
+---
+
 ```text
 PostgreSQL (OLTP) -> Debezium -> Kafka -> Worker (Python) -> ClickHouse
                       ^
@@ -15,7 +19,7 @@ Frontend administrativo (React)
 El repositorio contiene una solución acotada, completa y preparada para evolucionar: API del control plane, consola
 administrativa, infraestructura CDC, workers stateless y destino analítico ClickHouse. La configuración funcional se
 persiste en PostgreSQL desde la API y la interfaz; cada worker arranca con `WORKER_ID`, solicita su contrato runtime y
-mantiene esa configuración en memoria hasta un reinicio manual.
+mantiene esa configuración fija hasta un reinicio manual.
 
 ## Requisitos previos
 
@@ -39,8 +43,7 @@ mantiene esa configuración en memoria hasta un reinicio manual.
 ## Recorrido de comprobación
 
 Ejecutar los pasos en orden desde la raíz del repositorio. El recorrido levanta la solución, crea configuración
-administrativa, publica CDC, arranca workers, genera cambios, valida la convergencia y deja artefactos fáciles de
-capturar para la memoria.
+administrativa, publica CDC, arranca workers, genera cambios y valida la convergencia entre PostgreSQL y ClickHouse.
 
 ### 1. Preparar el entorno
 
@@ -202,7 +205,7 @@ Resultado esperado:
 - el bloque `kafka` contiene topics CDC de las tablas CRM;
 - el bloque `tables` contiene tablas habilitadas como `crm_accounts`.
 
-Para la memoria, usar este fragmento filtrado sin credenciales:
+Como fragmento seguro para revisión, usar esta consulta filtrada sin credenciales:
 
 ```bash
 python3 - <<'PY'
@@ -447,21 +450,3 @@ make workers-down WORKER_IDS=crm-worker,sales-worker,operations-worker
 docker compose down -v
 rm -f .tmp/e2e-demo-state.json
 ```
-
-## Puntos de inspección para resultados
-
-Esta sección resume qué artefactos capturar una vez ejecutado el recorrido anterior.
-
-| Evidencia | Artefacto recomendado | Cómo obtenerlo |
-| --- | --- | --- |
-| Fig. 4-1 | Consola administrativa en una vista de configuración | Abrir `http://localhost:5173` tras el paso 4 y usar la vista `Configuraciones`. |
-| Tabla 4-1 | Resumen de workers, tablas y destino | Usar el resumen Python del paso 4. |
-| Fig. 4-2 | Conector Debezium y tablas capturadas | Usar el resultado mostrado por la UI en el paso 5. |
-| Código 4-1 | Fragmento del contrato runtime sin credenciales | Consultar el runtime en la UI y usar el fragmento seguro del paso 6. |
-| Fig. 4-3 | Logs de arranque del worker | Usar los logs filtrados del paso 7. |
-| Código 4-2 | Lectura física y estado vigente de una fila viva | Usar la primera consulta de ClickHouse del paso 10. |
-| Código 4-3 | Comparación PostgreSQL frente a ClickHouse vigente | Usar las dos consultas de comparación del paso 10. |
-| Código 4-4 | Lectura física y estado vigente de un borrado lógico | Usar la consulta de `DELETED_ACCOUNT_ID` del paso 10. |
-| Fig. 4-4 | Comparación PostgreSQL frente a ClickHouse | Usar las dos consultas de comparación del paso 10. |
-| Fig. 4-5 | Salida resumida de validación completa | Capturar el tramo final de `make demo-assert` en el paso 9, o de `make e2e-validate`. |
-| Tabla 4-2 | Pruebas por capa | Usar la tabla de tests por capas y completar resultados con la salida real de cada comando. |
