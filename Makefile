@@ -159,7 +159,12 @@ frontend-api-types:
 	@npm --prefix frontend run api:types
 
 frontend-up:
-	@docker compose up -d --build frontend
+	@set -euo pipefail; \
+	output="$$(docker compose up -d --build --quiet-build --quiet-pull frontend 2>&1)" || { \
+		echo "$$output" >&2; \
+		exit 1; \
+	}; \
+	echo "Frontend disponible en http://localhost:5173"
 
 frontend-logs:
 	@docker compose logs -f frontend
