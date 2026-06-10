@@ -116,6 +116,59 @@ OPENAPI_BASE_URL=http://localhost:8001 npm --prefix frontend run api:types
 
 ## Build
 
+Desde la raíz del repositorio:
+
 ```bash
 make frontend-build
 ```
+
+Desde `frontend/`:
+
+```bash
+npm run build
+```
+
+## Smoke administrativo
+
+El frontend incluye una suite smoke e2e ligera con Playwright para validar la navegación administrativa, la creación de
+workers, orígenes y destinos, y una carga suave de configuraciones sin levantar Docker ni servicios externos:
+
+Desde la raíz del repositorio:
+
+```bash
+make frontend-smoke
+```
+
+También puede ejecutarse directamente con npm desde la raíz:
+
+```bash
+npm --prefix frontend run smoke:admin
+```
+
+Desde `frontend/`:
+
+```bash
+npm run smoke:admin
+```
+
+Si `npm --prefix frontend ...` muestra una ruta terminada en `frontend/frontend/package.json`, la terminal está dentro
+de `frontend/`; en ese caso usa `npm run smoke:admin` o vuelve a la raíz antes de usar `--prefix`.
+
+`smoke:workers` se mantiene como alias compatible del smoke administrativo.
+
+Si Chromium no está instalado en la caché local de Playwright, prepararlo una vez con:
+
+```bash
+npm --prefix frontend exec playwright install chromium
+```
+
+O, si ya estás dentro de `frontend/`:
+
+```bash
+npx playwright install chromium
+```
+
+La prueba arranca Vite con una URL de API mockeada, intercepta `GET /health`, `GET /api/v1/workers` y
+las rutas administrativas mínimas, y verifica estados vacíos, modales de creación, payloads enviados y entidades
+reflejadas en tablas. Es una validación acotada a Chromium y complementa `make e2e-validate`; no sustituye la demo e2e
+completa del stack.
