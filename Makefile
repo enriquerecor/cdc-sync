@@ -15,7 +15,7 @@ CONNECT_RETRY_DELAY_SECONDS ?= 2
 DEMO_RUNNER := python3 infrastructure/e2e/demo_local.py
 ANALYTICS_DATASET_PYTHON ?= /usr/bin/python3
 ANALYTICS_DATASET_RUNNER := $(ANALYTICS_DATASET_PYTHON) demos/industrial-analytics/industrial_analytics_dataset.py
-ANALYTICS_DATASET_SIZE ?= small
+ANALYTICS_DATASET_SIZE ?= medium
 ANALYTICS_DATASET_SCHEMA ?= industrial_analytics
 ANALYTICS_DATASET_SEED ?= 20260617
 ANALYTICS_DATASET_SCALE ?= 1
@@ -69,7 +69,7 @@ help:
 	@echo "  make demo-assert"
 	@echo "  make demo-local"
 	@echo "  make e2e-validate"
-	@echo "  make analytics-dataset-load ANALYTICS_DATASET_SIZE=small"
+	@echo "  make analytics-dataset-load ANALYTICS_DATASET_SIZE=medium"
 	@echo "  make analytics-dataset-changes"
 	@echo "  make analytics-dataset-benchmark"
 	@echo "  make analytics-dataset-demo"

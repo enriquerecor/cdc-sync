@@ -122,8 +122,7 @@ SELECT
     SUM(lectura_critica)::BIGINT AS lecturas_criticas
 FROM lecturas_enriquecidas
 GROUP BY hora, codigo_maquina, area, modelo_transformador
-ORDER BY hora DESC, lecturas_criticas DESC, consumo_kw_maximo DESC
-LIMIT 500;
+ORDER BY hora DESC, lecturas_criticas DESC, consumo_kw_maximo DESC;
 
 -- benchmark: 04_top_clientes_actividad_relevante
 WITH actividad_cliente AS (
@@ -171,8 +170,7 @@ SELECT
     precio_medio_linea::NUMERIC(10, 2) AS precio_medio_linea,
     RANK() OVER (PARTITION BY sector ORDER BY facturacion DESC) AS ranking_sector
 FROM resumen_cliente
-ORDER BY facturacion DESC, ultimo_pedido DESC
-LIMIT 50;
+ORDER BY facturacion DESC, ultimo_pedido DESC;
 
 -- benchmark: 05_trazabilidad_calidad
 WITH trazabilidad AS (
