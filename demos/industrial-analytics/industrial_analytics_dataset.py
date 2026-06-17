@@ -21,6 +21,7 @@ DEMO_DIR = Path(__file__).resolve().parent
 SCHEMA_SQL = DEMO_DIR / "schema.sql"
 INDEXES_SQL = DEMO_DIR / "indexes.sql"
 BENCHMARK_QUERIES_SQL = DEMO_DIR / "benchmark_queries.sql"
+CDC_CHANGES_SQL = DEMO_DIR / "cdc_changes.sql"
 DEFAULT_SCHEMA = "industrial_analytics"
 DEFAULT_SEED = 20260617
 DEFAULT_SEARCH_TERM = "aislamiento"
@@ -436,6 +437,19 @@ class PsqlClient:
         )
         return _completed_output(command, result)
 
+    def report_sql_file(self, path: Path, variables: dict[str, str]) -> str:
+        _require_file(path)
+        command = self._base_command(variables) + ["-qAt"]
+        result = subprocess.run(
+            command,
+            cwd=ROOT_DIR,
+            input=path.read_text(encoding="utf-8"),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return _completed_output(command, result)
+
     def copy_csv(self, schema_name: str, table_file: TableFile) -> str:
         schema_identifier = quote_identifier(schema_name)
         table_identifier = quote_identifier(table_file.name)
@@ -483,6 +497,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         command_handlers = {
             "load": run_load_command,
+            "changes": run_changes_command,
             "benchmark": run_benchmark_command,
         }
         command_handlers[args.command](args)
@@ -532,6 +547,17 @@ def run_benchmark_command(args: argparse.Namespace) -> None:
         print(f"{query.name}: {elapsed_ms:.1f} ms ({row_count} filas)")
 
 
+def run_changes_command(args: argparse.Namespace) -> None:
+    schema_name = validate_identifier(args.schema)
+    psql_client = PsqlClient(resolve_psql_config(args))
+    output = psql_client.report_sql_file(CDC_CHANGES_SQL, {"schema_name": schema_name})
+    print(f"Cambios CDC aplicados sobre {schema_name}")
+    for raw_line in output.splitlines():
+        line = raw_line.strip()
+        if line:
+            print(f"  {line}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Genera y carga un dataset ERP industrial sintético.",
@@ -559,6 +585,12 @@ def build_parser() -> argparse.ArgumentParser:
     load_parser.add_argument("--lecturas-por-orden", type=positive_int)
     load_parser.add_argument("--consumos-por-orden", type=positive_int)
     load_parser.add_argument("--no-conformidades", type=positive_int)
+
+    changes_parser = subparsers.add_parser(
+        "changes",
+        help="Aplica cambios transaccionales para una futura demo CDC.",
+    )
+    add_postgres_arguments(changes_parser)
 
     benchmark_parser = subparsers.add_parser(
         "benchmark",

@@ -38,7 +38,7 @@ endef
 
 .DEFAULT_GOAL := help
 
-.PHONY: help env-init api-up api-migrate api-logs api-health api-test api-test-integration frontend-install frontend-dev frontend-build frontend-smoke frontend-api-types frontend-up frontend-logs worker-test-deps worker-test workers-up workers-down demo-up demo-migrate demo-configure demo-materialize demo-workers demo-changes demo-assert demo-local e2e-validate analytics-dataset-load analytics-dataset-benchmark analytics-dataset-demo debezium-postgres-render debezium-postgres-apply debezium-postgres-status
+.PHONY: help env-init api-up api-migrate api-logs api-health api-test api-test-integration frontend-install frontend-dev frontend-build frontend-smoke frontend-api-types frontend-up frontend-logs worker-test-deps worker-test workers-up workers-down demo-up demo-migrate demo-configure demo-materialize demo-workers demo-changes demo-assert demo-local e2e-validate analytics-dataset-load analytics-dataset-changes analytics-dataset-benchmark analytics-dataset-demo debezium-postgres-render debezium-postgres-apply debezium-postgres-status
 
 help:
 	@echo "Objetivos disponibles:"
@@ -70,6 +70,7 @@ help:
 	@echo "  make demo-local"
 	@echo "  make e2e-validate"
 	@echo "  make analytics-dataset-load ANALYTICS_DATASET_SIZE=small"
+	@echo "  make analytics-dataset-changes"
 	@echo "  make analytics-dataset-benchmark"
 	@echo "  make analytics-dataset-demo"
 	@echo "  make debezium-postgres-render"
@@ -228,6 +229,10 @@ analytics-dataset-load:
 		--seed "$(ANALYTICS_DATASET_SEED)" \
 		--scale "$(ANALYTICS_DATASET_SCALE)" \
 		$(ANALYTICS_DATASET_ARGS)
+
+analytics-dataset-changes:
+	@$(ANALYTICS_DATASET_RUNNER) changes \
+		--schema "$(ANALYTICS_DATASET_SCHEMA)"
 
 analytics-dataset-benchmark:
 	@$(ANALYTICS_DATASET_RUNNER) benchmark \
