@@ -58,7 +58,9 @@ make analytics-demo-benchmark
 
 `analytics-demo-wait-snapshot` comprueba que ClickHouse, los tres workers y el
 conector Debezium siguen en ejecución. Si alguno cae, el comando falla con la
-causa antes de agotar el timeout.
+causa antes de agotar el timeout. Mientras espera, imprime progreso periódico
+con filas vivas en ClickHouse frente a PostgreSQL y las tablas que aún no han
+convergido.
 
 El benchmark muestra por consulta:
 

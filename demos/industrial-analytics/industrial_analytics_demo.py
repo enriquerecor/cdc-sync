@@ -24,7 +24,6 @@ from industrial_analytics_dataset import (
     validate_identifier,
 )
 
-
 ROOT_DIR = Path(__file__).resolve().parents[2]
 DEFAULT_STATE_FILE = ".tmp/industrial-analytics-demo-state.json"
 DEFAULT_WORKER_IDS = (
@@ -34,6 +33,8 @@ DEFAULT_WORKER_IDS = (
 )
 DEFAULT_TIMEOUT_SECONDS = 420
 RETRY_DELAY_SECONDS = 5
+PROGRESS_REPORT_INTERVAL_SECONDS = 30
+PROGRESS_TABLE_LIMIT = 5
 TOPIC_PREFIX = "cdc_sync"
 SOURCE_CONNECTION_NAME = "Demo industrial analytics PostgreSQL local"
 DESTINATION_NAME = "Demo industrial analytics ClickHouse local"
@@ -84,6 +85,17 @@ class QuerySignature:
     name: str
     row_count: int
     signature: str
+
+
+@dataclass(frozen=True)
+class TableSyncProgress:
+    table_name: str
+    postgres_rows: int
+    clickhouse_rows: int
+
+    @property
+    def delta_rows(self) -> int:
+        return self.postgres_rows - self.clickhouse_rows
 
 
 @dataclass(frozen=True)
@@ -341,22 +353,50 @@ class IndustrialAnalyticsDemoRunner:
             initial_signatures,
             require_changed=require_changed,
         )
-        deadline = time.monotonic() + int(
+        expected_table_counts = self._postgres_table_counts()
+        started_at = time.monotonic()
+        deadline = started_at + int(
             self.env.get(
                 "ANALYTICS_DEMO_TIMEOUT_SECONDS",
                 DEFAULT_TIMEOUT_SECONDS,
             )
         )
+        next_progress_report_at = started_at
         last_error: Exception | None = None
         while time.monotonic() <= deadline:
+            self._assert_runtime_health()
+            current_progress_rows: list[TableSyncProgress] | None = None
             try:
-                self._assert_runtime_health()
+                actual_table_counts = self._clickhouse_live_table_counts()
+                current_progress_rows = _table_progress_rows(
+                    expected_table_counts,
+                    actual_table_counts,
+                )
+                _assert_table_counts_match(current_progress_rows)
                 clickhouse_signatures = self._clickhouse_signatures()
                 _assert_signature_sets_match(postgres_signatures, clickhouse_signatures)
                 return postgres_signatures
             except (AnalyticsDemoError, subprocess.CalledProcessError) as exc:
                 last_error = exc
-                time.sleep(RETRY_DELAY_SECONDS)
+                self._assert_runtime_health()
+                current_time = time.monotonic()
+                if current_time >= next_progress_report_at:
+                    self._print_convergence_progress(
+                        label=label,
+                        started_at=started_at,
+                        expected_table_counts=expected_table_counts,
+                        current_progress_rows=current_progress_rows,
+                        last_error=last_error,
+                    )
+                    next_progress_report_at = (
+                        current_time + PROGRESS_REPORT_INTERVAL_SECONDS
+                    )
+
+                sleep_seconds = min(RETRY_DELAY_SECONDS, deadline - time.monotonic())
+                if sleep_seconds <= 0:
+                    break
+
+                time.sleep(sleep_seconds)
 
         raise AnalyticsDemoError(
             f"ClickHouse no convergió para {label} antes del timeout. "
@@ -393,6 +433,59 @@ class IndustrialAnalyticsDemoRunner:
             self._clickhouse_query_signature(query)
             for query in self.benchmark_queries
         ]
+
+    def _postgres_table_counts(self) -> dict[str, int]:
+        schema_name = _quote_postgres_identifier(self.schema_name)
+        counts_sql = _postgres_table_counts_sql(schema_name, self.table_specs)
+        return _parse_table_count_rows(self.psql_client.query(counts_sql, {}))
+
+    def _clickhouse_live_table_counts(self) -> dict[str, int]:
+        counts_sql = _clickhouse_live_table_counts_sql(
+            self.clickhouse_database,
+            self.table_specs,
+        )
+        return _parse_table_count_rows(self._clickhouse_query(counts_sql))
+
+    def _print_convergence_progress(
+        self,
+        *,
+        label: str,
+        started_at: float,
+        expected_table_counts: dict[str, int],
+        current_progress_rows: list[TableSyncProgress] | None,
+        last_error: Exception | None,
+    ) -> None:
+        elapsed_seconds = int(time.monotonic() - started_at)
+        if current_progress_rows is not None:
+            _print_convergence_progress(
+                label=label,
+                elapsed_seconds=elapsed_seconds,
+                progress_rows=current_progress_rows,
+                last_error=last_error,
+            )
+            return
+
+        try:
+            actual_table_counts = self._clickhouse_live_table_counts()
+        except AnalyticsDemoError as exc:
+            _print_convergence_progress_unavailable(
+                label=label,
+                elapsed_seconds=elapsed_seconds,
+                progress_error=exc,
+                last_error=last_error,
+            )
+            return
+
+        progress_rows = _table_progress_rows(
+            expected_table_counts,
+            actual_table_counts,
+        )
+        _print_convergence_progress(
+            label=label,
+            elapsed_seconds=elapsed_seconds,
+            progress_rows=progress_rows,
+            last_error=last_error,
+        )
 
     def _postgres_benchmark_result(
         self,
@@ -1487,6 +1580,178 @@ def _clickhouse_live_table_cte(clickhouse_database: str, table_name: str) -> str
         f"{_quote_clickhouse_identifier(table_name)} FINAL WHERE deleted = 0"
         ")"
     )
+
+
+def _postgres_table_counts_sql(
+    schema_name: str,
+    table_specs: Sequence[IndustrialTableSpec],
+) -> str:
+    selects = [
+        (
+            f"SELECT {_sql_literal(table.name)} AS table_name, "
+            f"COUNT(*)::BIGINT AS row_count "
+            f"FROM {schema_name}.{_quote_postgres_identifier(table.name)}"
+        )
+        for table in table_specs
+    ]
+    return (
+        "SELECT table_name || '|' || row_count::TEXT\n"
+        "FROM (\n"
+        + "\nUNION ALL\n".join(selects)
+        + "\n) table_counts\n"
+        "ORDER BY table_name;\n"
+    )
+
+
+def _clickhouse_live_table_counts_sql(
+    clickhouse_database: str,
+    table_specs: Sequence[IndustrialTableSpec],
+) -> str:
+    database_name = _quote_clickhouse_identifier(clickhouse_database)
+    selects = [
+        (
+            f"SELECT {_sql_literal(table.name)} AS table_name, "
+            f"count() AS row_count "
+            f"FROM {database_name}.{_quote_clickhouse_identifier(table.name)} "
+            "FINAL WHERE deleted = 0"
+        )
+        for table in table_specs
+    ]
+    return (
+        "SELECT concat(table_name, '|', toString(row_count))\n"
+        "FROM (\n"
+        + "\nUNION ALL\n".join(selects)
+        + "\n) table_counts\n"
+        "ORDER BY table_name\n"
+    )
+
+
+def _parse_table_count_rows(output: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for raw_line in output.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        parts = line.split("|", 1)
+        if len(parts) != 2:
+            raise AnalyticsDemoError(f"Conteo por tabla inválido: {line}")
+
+        counts[parts[0]] = int(parts[1])
+
+    if counts:
+        return counts
+
+    raise AnalyticsDemoError("No se pudieron leer conteos por tabla")
+
+
+def _table_progress_rows(
+    expected_table_counts: dict[str, int],
+    actual_table_counts: dict[str, int],
+) -> list[TableSyncProgress]:
+    return [
+        TableSyncProgress(
+            table_name=table_name,
+            postgres_rows=postgres_rows,
+            clickhouse_rows=actual_table_counts.get(table_name, 0),
+        )
+        for table_name, postgres_rows in expected_table_counts.items()
+    ]
+
+
+def _assert_table_counts_match(progress_rows: list[TableSyncProgress]) -> None:
+    pending_rows = [row for row in progress_rows if row.delta_rows != 0]
+    if not pending_rows:
+        return
+
+    raise AnalyticsDemoError(
+        "Filas vivas pendientes: " + _format_pending_table_progress(pending_rows)
+    )
+
+
+def _print_convergence_progress_unavailable(
+    *,
+    label: str,
+    elapsed_seconds: int,
+    progress_error: Exception,
+    last_error: Exception | None,
+) -> None:
+    print(
+        "[analytics-demo] progreso "
+        f"fase={label} "
+        f"t={elapsed_seconds}s "
+        "estado=conteos_no_disponibles "
+        f"último_error={_compact_error_message(last_error)} "
+        f"progreso_error={_compact_error_message(progress_error)}",
+        flush=True,
+    )
+
+
+def _print_convergence_progress(
+    *,
+    label: str,
+    elapsed_seconds: int,
+    progress_rows: list[TableSyncProgress],
+    last_error: Exception | None,
+) -> None:
+    print(
+        "[analytics-demo] progreso "
+        f"fase={label} "
+        f"t={elapsed_seconds}s "
+        f"{_format_table_progress_summary(progress_rows)} "
+        f"último_error={_compact_error_message(last_error)}",
+        flush=True,
+    )
+
+
+def _format_table_progress_summary(progress_rows: list[TableSyncProgress]) -> str:
+    postgres_total = sum(row.postgres_rows for row in progress_rows)
+    clickhouse_total = sum(row.clickhouse_rows for row in progress_rows)
+    pending_rows = [row for row in progress_rows if row.delta_rows != 0]
+    summary = (
+        f"filas_vivas={clickhouse_total}/{postgres_total} "
+        f"tablas_pendientes={len(pending_rows)}/{len(progress_rows)}"
+    )
+    if not pending_rows:
+        return f"{summary} detalle=filas vivas coinciden; esperando firmas"
+
+    return f"{summary} detalle={_format_pending_table_progress(pending_rows)}"
+
+
+def _format_pending_table_progress(
+    pending_rows: list[TableSyncProgress],
+) -> str:
+    sorted_rows = sorted(
+        pending_rows,
+        key=lambda row: abs(row.delta_rows),
+        reverse=True,
+    )
+    visible_rows = sorted_rows[:PROGRESS_TABLE_LIMIT]
+    hidden_count = len(sorted_rows) - len(visible_rows)
+    detail = ", ".join(_format_table_sync_progress(row) for row in visible_rows)
+    if hidden_count <= 0:
+        return detail
+
+    return f"{detail}, +{hidden_count} tablas"
+
+
+def _format_table_sync_progress(row: TableSyncProgress) -> str:
+    direction = "faltan" if row.delta_rows > 0 else "sobran"
+    return (
+        f"{row.table_name}={row.clickhouse_rows}/{row.postgres_rows} "
+        f"({direction} {abs(row.delta_rows)})"
+    )
+
+
+def _compact_error_message(error: Exception | None) -> str:
+    if error is None:
+        return "sin error"
+
+    message = " ".join(str(error).split())
+    if len(message) <= 180:
+        return message
+
+    return message[:177] + "..."
 
 
 def _assert_signature_sets_match(
