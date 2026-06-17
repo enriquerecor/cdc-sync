@@ -513,7 +513,7 @@ def run_load_command(args: argparse.Namespace) -> None:
     config = resolve_dataset_config(args)
     psql_client = PsqlClient(resolve_psql_config(args))
     print(
-        "Generando dataset "
+        "\nGenerando dataset "
         f"{config.size} con seed={config.seed} en esquema {schema_name}"
     )
 
@@ -539,7 +539,7 @@ def run_benchmark_command(args: argparse.Namespace) -> None:
         "schema_name": schema_name,
         "search_term": args.term,
     }
-    print(f"Ejecutando benchmark en PostgreSQL sobre {schema_name}")
+    print(f"\nEjecutando benchmark en PostgreSQL sobre {schema_name}")
     for query in queries:
         started_at = time.perf_counter()
         output = psql_client.query(query.sql, variables)
@@ -556,7 +556,7 @@ def run_changes_command(args: argparse.Namespace) -> None:
     schema_name = validate_identifier(args.schema)
     psql_client = PsqlClient(resolve_psql_config(args))
     output = psql_client.report_sql_file(CDC_CHANGES_SQL, {"schema_name": schema_name})
-    print(f"Cambios CDC aplicados sobre {schema_name}")
+    print(f"\nCambios CDC aplicados sobre {schema_name}")
     for raw_line in output.splitlines():
         line = raw_line.strip()
         if line:

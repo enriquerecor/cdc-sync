@@ -15,6 +15,13 @@ CONNECT_RETRY_DELAY_SECONDS ?= 2
 DEMO_RUNNER := python3 infrastructure/e2e/demo_local.py
 ANALYTICS_DATASET_PYTHON ?= /usr/bin/python3
 ANALYTICS_DATASET_RUNNER := $(ANALYTICS_DATASET_PYTHON) demos/industrial-analytics/industrial_analytics_dataset.py
+ANALYTICS_DEMO_WORKER_IDS ?= industrial-sales-worker,industrial-production-worker,industrial-quality-worker
+ANALYTICS_DEMO_STATE_FILE ?= .tmp/industrial-analytics-demo-state.json
+ANALYTICS_DEMO_RUNNER = $(ANALYTICS_DATASET_PYTHON) demos/industrial-analytics/industrial_analytics_demo.py \
+	--schema "$(ANALYTICS_DATASET_SCHEMA)" \
+	--worker-ids "$(ANALYTICS_DEMO_WORKER_IDS)" \
+	--state-file "$(ANALYTICS_DEMO_STATE_FILE)" \
+	--term "$(ANALYTICS_DATASET_TERM)"
 ANALYTICS_DATASET_SIZE ?= medium
 ANALYTICS_DATASET_SCHEMA ?= industrial_analytics
 ANALYTICS_DATASET_SEED ?= 20260617
@@ -38,7 +45,7 @@ endef
 
 .DEFAULT_GOAL := help
 
-.PHONY: help env-init api-up api-migrate api-logs api-health api-test api-test-integration frontend-install frontend-dev frontend-build frontend-smoke frontend-api-types frontend-up frontend-logs worker-test-deps worker-test workers-up workers-down demo-up demo-migrate demo-configure demo-materialize demo-workers demo-changes demo-assert demo-local e2e-validate analytics-dataset-load analytics-dataset-changes analytics-dataset-benchmark analytics-dataset-demo debezium-postgres-render debezium-postgres-apply debezium-postgres-status
+.PHONY: help env-init api-up api-migrate api-logs api-health api-test api-test-integration frontend-install frontend-dev frontend-build frontend-smoke frontend-api-types frontend-up frontend-logs worker-test-deps worker-test workers-up workers-down demo-up demo-migrate demo-configure demo-materialize demo-workers demo-changes demo-assert demo-local e2e-validate analytics-dataset-load analytics-dataset-changes analytics-dataset-benchmark analytics-dataset-demo analytics-demo-up analytics-demo-dataset analytics-demo-dataset-small analytics-demo-dataset-defense analytics-demo-dataset-medium analytics-demo-configure analytics-demo-materialize analytics-demo-workers analytics-demo-wait-snapshot analytics-demo-benchmark analytics-demo-changes analytics-demo-wait-cdc analytics-demo-benchmark-after analytics-demo-reset debezium-postgres-render debezium-postgres-apply debezium-postgres-status
 
 help:
 	@echo "Objetivos disponibles:"
@@ -73,6 +80,19 @@ help:
 	@echo "  make analytics-dataset-changes"
 	@echo "  make analytics-dataset-benchmark"
 	@echo "  make analytics-dataset-demo"
+	@echo "  make analytics-demo-up"
+	@echo "  make analytics-demo-dataset-small"
+	@echo "  make analytics-demo-dataset-defense"
+	@echo "  make analytics-demo-dataset-medium"
+	@echo "  make analytics-demo-configure"
+	@echo "  make analytics-demo-materialize"
+	@echo "  make analytics-demo-workers"
+	@echo "  make analytics-demo-wait-snapshot"
+	@echo "  make analytics-demo-benchmark"
+	@echo "  make analytics-demo-changes"
+	@echo "  make analytics-demo-wait-cdc"
+	@echo "  make analytics-demo-benchmark-after"
+	@echo "  make analytics-demo-reset"
 	@echo "  make debezium-postgres-render"
 	@echo "  make debezium-postgres-apply"
 	@echo "  make debezium-postgres-status"
@@ -242,6 +262,53 @@ analytics-dataset-benchmark:
 analytics-dataset-demo:
 	@$(MAKE) analytics-dataset-load
 	@$(MAKE) analytics-dataset-benchmark
+	@$(MAKE) analytics-dataset-changes
+	@$(MAKE) analytics-dataset-benchmark
+
+analytics-demo-up:
+	@$(MAKE) env-init
+	@$(MAKE) demo-up
+	@$(MAKE) demo-migrate
+	@$(MAKE) frontend-up
+
+analytics-demo-dataset:
+	@$(MAKE) analytics-dataset-load
+
+analytics-demo-dataset-small:
+	@$(MAKE) analytics-dataset-load ANALYTICS_DATASET_SIZE=small ANALYTICS_DATASET_SCALE=1
+
+analytics-demo-dataset-defense:
+	@$(MAKE) analytics-dataset-load ANALYTICS_DATASET_SIZE=medium ANALYTICS_DATASET_SCALE=0.03
+
+analytics-demo-dataset-medium:
+	@$(MAKE) analytics-dataset-load ANALYTICS_DATASET_SIZE=medium ANALYTICS_DATASET_SCALE=1
+
+analytics-demo-configure:
+	@$(ANALYTICS_DEMO_RUNNER) configure
+
+analytics-demo-materialize:
+	@$(ANALYTICS_DEMO_RUNNER) materialize
+
+analytics-demo-workers:
+	@WORKER_IDS="$(ANALYTICS_DEMO_WORKER_IDS)" $(DEMO_RUNNER) workers-up
+
+analytics-demo-wait-snapshot:
+	@$(ANALYTICS_DEMO_RUNNER) wait-snapshot
+
+analytics-demo-benchmark:
+	@$(ANALYTICS_DEMO_RUNNER) benchmark
+
+analytics-demo-changes:
+	@$(ANALYTICS_DEMO_RUNNER) changes
+
+analytics-demo-wait-cdc:
+	@$(ANALYTICS_DEMO_RUNNER) wait-cdc
+
+analytics-demo-benchmark-after:
+	@$(ANALYTICS_DEMO_RUNNER) benchmark-after
+
+analytics-demo-reset:
+	@$(ANALYTICS_DEMO_RUNNER) reset
 
 
 $(WORKER_TEST_VENV_PYTHON):
