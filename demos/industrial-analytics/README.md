@@ -50,8 +50,8 @@ python3 demos/industrial-analytics/industrial_analytics_dataset.py load \
 make analytics-dataset-benchmark
 ```
 
-El comando ejecuta las queries de `benchmark_queries.sql` y muestra tiempo aproximado y número de filas devueltas. Para
-probar otro término textual:
+El comando ejecuta las queries de `benchmark_queries.sql` y muestra tiempo aproximado, número de filas devueltas y una
+firma corta del resultado. Para probar otro término textual:
 
 ```bash
 make analytics-dataset-benchmark ANALYTICS_DATASET_TERM=aceite

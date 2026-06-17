@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import os
 import random
 import re
@@ -544,7 +545,11 @@ def run_benchmark_command(args: argparse.Namespace) -> None:
         output = psql_client.query(query.sql, variables)
         elapsed_ms = (time.perf_counter() - started_at) * 1000
         row_count = count_output_rows(output)
-        print(f"{query.name}: {elapsed_ms:.1f} ms ({row_count} filas)")
+        result_signature = hashlib.sha256(output.encode("utf-8")).hexdigest()[:12]
+        print(
+            f"{query.name}: {elapsed_ms:.1f} ms "
+            f"({row_count} filas, firma {result_signature})"
+        )
 
 
 def run_changes_command(args: argparse.Namespace) -> None:
