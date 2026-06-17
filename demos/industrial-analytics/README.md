@@ -1,62 +1,117 @@
-# Dataset industrial analítico
+# Demo industrial OLTP -> CDC -> OLAP
 
-Dataset sintético y determinista para una demostración basada en un ERP industrial ficticio en PostgreSQL
-dentro del esquema llamado `industrial_analytics`. Incluye cinco consultas analísticas de ejemplo
-para medir tiempos aproximados en PostgreSQL.
+Esta demo ejecuta el recorrido completo con el esquema `industrial_analytics`:
 
-Comando completo de carga y benchmark con el tamaño por defecto:
+PostgreSQL OLTP -> Debezium -> Kafka -> workers -> ClickHouse OLAP.
 
-```bash
-make analytics-dataset-demo
-```
+La configuración CDC se crea desde la API del control plane. La materialización
+del conector Debezium puede hacerse desde la interfaz durante la defensa o con
+el target alternativo de Make.
 
-## Generar y cargar
+## Tamaños disponibles
 
-Desde la raíz del repositorio:
+- `analytics-demo-dataset-small`: validación rápida.
+- `analytics-demo-dataset-defense`: tamaño recomendado para defensa.
+- `analytics-demo-dataset-medium`: prueba pesada.
 
-```bash
-make analytics-dataset-load ANALYTICS_DATASET_SIZE=medium
-```
+El tamaño de defensa usa `medium` con escala reducida (`0.03`) para mantener el
+dataset analítico real sin forzar tanto el snapshot.
 
-Tamaños disponibles:
-
-- `small`: validación rápida.
-- `medium`: volumen equivalente al primer tamaño grande de la demo.
-- `large`: volumen mayor para forzar consultas de varios segundos en una demo local.
-
-## Ejecutar benchmark en PostgreSQL
+## Recorrido recomendado para defensa
 
 ```bash
-make analytics-dataset-benchmark
+make analytics-demo-reset
+make analytics-demo-up
+make analytics-demo-dataset-defense
+make analytics-demo-configure
 ```
 
-El comando ejecuta las queries de `benchmark_queries.sql` y muestra tiempo aproximado, número de filas devueltas y un
-hash del resultado, para identificar cambios en el dataset posteriormente.
+En este punto el control plane contiene:
 
-## Aplicar cambios para CDC
+- `industrial-sales-worker`: `clientes`, `productos`, `pedidos`, `lineas_pedido`.
+- `industrial-production-worker`: `maquinas`, `ordenes_produccion`, `lecturas_sensores`.
+- `industrial-quality-worker`: `proveedores`, `materiales`, `lotes_material`, `consumos_material`, `no_conformidades`.
 
-Para simular una tanda de cambios transaccionales sobre el ERP industrial:
+## Materialización CDC desde la UI
+
+Abrir la consola administrativa:
+
+```text
+http://localhost:5173
+```
+
+Materializar el conector Debezium desde la sección de configuraciones.
+
+## Alternativa por terminal
 
 ```bash
-make analytics-dataset-changes
+make analytics-demo-materialize
 ```
 
-El comando intercala operaciones y aplica exactamente:
-
-- `1000` filas borradas.
-- `2000` filas actualizadas, incluyendo un subconjunto actualizado más de una vez.
-- `500` filas insertadas.
-
-Después se puede repetir el benchmark para observar diferencias. Todos los hash deben ser diferentes:
+## Snapshot inicial
 
 ```bash
-make analytics-dataset-benchmark
+make analytics-demo-workers
+make analytics-demo-wait-snapshot
+make analytics-demo-benchmark
 ```
 
-## Ficheros
+`analytics-demo-wait-snapshot` comprueba que ClickHouse, los tres workers y el
+conector Debezium siguen en ejecución. Si alguno cae, el comando falla con la
+causa antes de agotar el timeout.
 
-- `schema.sql`: creación del esquema y tablas.
-- `indexes.sql`: índices mínimos para claves de unión y fechas principales.
-- `cdc_changes.sql`: tanda transaccional de cambios para una futura demo CDC.
-- `benchmark_queries.sql`: consultas analíticas preparadas.
-- `industrial_analytics_dataset.py`: generación determinista, carga por `COPY` y runner simple de benchmark.
+El benchmark muestra por consulta:
+
+- fase;
+- motor;
+- tiempo;
+- filas;
+- firma lógica.
+
+PostgreSQL y ClickHouse deben devolver las mismas filas y la misma firma.
+
+## Cambios CDC
+
+```bash
+make analytics-demo-changes
+make analytics-demo-wait-cdc
+make analytics-demo-benchmark-after
+```
+
+La tanda CDC aplica inserts, updates y deletes. Después, las firmas deben haber
+cambiado respecto al snapshot inicial y volver a coincidir entre PostgreSQL y
+ClickHouse.
+
+## Validación rápida
+
+Para comprobar el flujo sin preparar una demo completa:
+
+```bash
+make analytics-demo-reset
+make analytics-demo-up
+make analytics-demo-dataset-small
+make analytics-demo-configure
+make analytics-demo-materialize
+make analytics-demo-workers
+make analytics-demo-wait-snapshot
+make analytics-demo-benchmark
+make analytics-demo-changes
+make analytics-demo-wait-cdc
+make analytics-demo-benchmark-after
+```
+
+## Prueba pesada
+
+```bash
+make analytics-demo-reset
+make analytics-demo-up
+make analytics-demo-dataset-medium
+make analytics-demo-configure
+make analytics-demo-materialize
+make analytics-demo-workers
+make analytics-demo-wait-snapshot
+make analytics-demo-benchmark
+make analytics-demo-changes
+make analytics-demo-wait-cdc
+make analytics-demo-benchmark-after
+```
