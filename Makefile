@@ -13,6 +13,14 @@ POSTGRES_CONNECTOR_OUTPUT := infrastructure/debezium/connectors/generated/postgr
 CONNECT_RETRY_ATTEMPTS ?= 15
 CONNECT_RETRY_DELAY_SECONDS ?= 2
 DEMO_RUNNER := python3 infrastructure/e2e/demo_local.py
+ANALYTICS_DATASET_PYTHON ?= /usr/bin/python3
+ANALYTICS_DATASET_RUNNER := $(ANALYTICS_DATASET_PYTHON) demos/industrial-analytics/industrial_analytics_dataset.py
+ANALYTICS_DATASET_SIZE ?= small
+ANALYTICS_DATASET_SCHEMA ?= industrial_analytics
+ANALYTICS_DATASET_SEED ?= 20260617
+ANALYTICS_DATASET_SCALE ?= 1
+ANALYTICS_DATASET_TERM ?= aislamiento
+ANALYTICS_DATASET_ARGS ?=
 
 define require_env_file
 	@if [[ ! -f "$(ENV_FILE)" ]]; then \
@@ -30,7 +38,7 @@ endef
 
 .DEFAULT_GOAL := help
 
-.PHONY: help env-init api-up api-migrate api-logs api-health api-test api-test-integration frontend-install frontend-dev frontend-build frontend-smoke frontend-api-types frontend-up frontend-logs worker-test-deps worker-test workers-up workers-down demo-up demo-migrate demo-configure demo-materialize demo-workers demo-changes demo-assert demo-local e2e-validate debezium-postgres-render debezium-postgres-apply debezium-postgres-status
+.PHONY: help env-init api-up api-migrate api-logs api-health api-test api-test-integration frontend-install frontend-dev frontend-build frontend-smoke frontend-api-types frontend-up frontend-logs worker-test-deps worker-test workers-up workers-down demo-up demo-migrate demo-configure demo-materialize demo-workers demo-changes demo-assert demo-local e2e-validate analytics-dataset-load analytics-dataset-benchmark analytics-dataset-demo debezium-postgres-render debezium-postgres-apply debezium-postgres-status
 
 help:
 	@echo "Objetivos disponibles:"
@@ -61,6 +69,9 @@ help:
 	@echo "  make demo-assert"
 	@echo "  make demo-local"
 	@echo "  make e2e-validate"
+	@echo "  make analytics-dataset-load ANALYTICS_DATASET_SIZE=small"
+	@echo "  make analytics-dataset-benchmark"
+	@echo "  make analytics-dataset-demo"
 	@echo "  make debezium-postgres-render"
 	@echo "  make debezium-postgres-apply"
 	@echo "  make debezium-postgres-status"
@@ -208,6 +219,24 @@ demo-local:
 
 e2e-validate:
 	@$(MAKE) demo-local
+
+analytics-dataset-load:
+	@docker compose up -d postgres
+	@$(ANALYTICS_DATASET_RUNNER) load \
+		--size "$(ANALYTICS_DATASET_SIZE)" \
+		--schema "$(ANALYTICS_DATASET_SCHEMA)" \
+		--seed "$(ANALYTICS_DATASET_SEED)" \
+		--scale "$(ANALYTICS_DATASET_SCALE)" \
+		$(ANALYTICS_DATASET_ARGS)
+
+analytics-dataset-benchmark:
+	@$(ANALYTICS_DATASET_RUNNER) benchmark \
+		--schema "$(ANALYTICS_DATASET_SCHEMA)" \
+		--term "$(ANALYTICS_DATASET_TERM)"
+
+analytics-dataset-demo:
+	@$(MAKE) analytics-dataset-load
+	@$(MAKE) analytics-dataset-benchmark
 
 
 $(WORKER_TEST_VENV_PYTHON):
